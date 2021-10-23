@@ -1,0 +1,15 @@
+[package]
+name = "wr"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+gitlab = "0.1403.0"
+duct = "0.13.5"
+clap = {version = "2.33", features = ["yaml"]}
+log = "0.4.0"
+simplelog = "^0.10.0"
+anyhow = "1.0.44"
+semver = "1.0.4"
+git2 = "0.13"
+dialoguer = "0.9.0"

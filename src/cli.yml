@@ -1,0 +1,20 @@
+name: wr
+version: "0.1.0"
+author: Jean-Philippe Bidegain <jp@bidega.in>
+about: Deploy websites using git flow and gitlab
+args:
+    - deploy:
+        long: deploy
+        short: d
+        help: "Launch a deploy job after the release"
+    - environment:
+        long: environment
+        short: e
+        help: "Define the deploy environment"
+        takes_value: true
+    - semver_type:
+        short: s
+        long: semver_type
+        help: "Define how to increment the version number (available \"Patch\", \"Minor\", \"Major\")"
+        takes_value: true
+
