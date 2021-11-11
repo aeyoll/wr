@@ -109,8 +109,8 @@ impl System {
         let need_pull = local != remote && local != base && remote == base;
 
         match (need_pull).then(|| 0) {
-            Some(_) => Ok(()),
-            _ => Err(anyhow!("Please run 'git fetch', 'git pull origin {develop}', 'git checkout {master} && git pull origin {master}'.", develop=*DEVELOP_BRANCH, master=*MASTER_BRANCH))
+            Some(_) => Err(anyhow!("Please run 'git fetch', 'git pull origin {develop}', 'git checkout {master} && git pull origin {master}'.", develop=*DEVELOP_BRANCH, master=*MASTER_BRANCH)),
+            _ => Ok(())
         }
     }
 
