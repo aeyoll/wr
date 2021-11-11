@@ -8,7 +8,7 @@ use git2::{BranchType, PushOptions, Remote, Repository};
 use dialoguer::{theme::ColorfulTheme, Confirm};
 use duct::cmd;
 
-use crate::DEVELOP_BRANCH;
+use crate::{DEVELOP_BRANCH, MASTER_BRANCH};
 
 pub struct Release {
     pub gitlab: Gitlab,
@@ -123,18 +123,30 @@ impl Release {
     pub fn deploy_prod(&self) -> Result<(), Error> {
         let mut push_options = self.get_push_options();
 
-        let branches: Vec<String> = self
-            .repository
-            .branches(Some(BranchType::Local))
-            .unwrap()
-            .map(|a| a.unwrap())
-            .map(|(a, _)| a.name().unwrap().unwrap().to_string())
-            .collect();
+        // Get all branches refs
+        // let branches: Vec<String> = self
+        //     .repository
+        //     .branches(Some(BranchType::Local))
+        //     .unwrap()
+        //     .map(|a| a.unwrap())
+        //     .map(|(a, _)| a.name().unwrap().unwrap().to_string())
+        //     .collect();
 
-        let refs: Vec<String> = branches.iter().map(|a| git::ref_by_branch(a)).collect();
-
+        // Push master and develop branches
+        let branches = vec![MASTER_BRANCH.to_string(), DEVELOP_BRANCH.to_string()];
+        let branches_refs: Vec<String> = branches.iter().map(|a| git::ref_by_branch(a)).collect();
         let mut remote = self.get_remote()?;
-        remote.push(&refs, Some(&mut push_options))?;
+        remote.push(&branches_refs, Some(&mut push_options))?;
+
+        // Push all tags
+        let tags = self.repository.tag_names(None).unwrap();
+        let tag_refs: Vec<String> = tags
+            .iter()
+            .map(|a| a.unwrap())
+            .map(|a| git::ref_by_tag(a))
+            .collect();
+        remote.push(&tag_refs, Some(&mut push_options))?;
+
         Ok(())
     }
 

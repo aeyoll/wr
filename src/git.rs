@@ -7,6 +7,10 @@ pub fn ref_by_branch(branch: &str) -> String {
     format!("refs/heads/{}:refs/heads/{}", branch, branch)
 }
 
+pub fn ref_by_tag(tag: &str) -> String {
+    format!("refs/tags/{}:refs/tags/{}", tag, tag)
+}
+
 /// Fetch credentials from the ssh-agent
 pub fn create_remote_callback() -> Result<RemoteCallbacks<'static>, Error> {
     let mut cb = RemoteCallbacks::new();
