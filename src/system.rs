@@ -1,7 +1,8 @@
 use anyhow::{anyhow, Error};
-use git2::Config;
 use duct::cmd;
 use std::{env, path::Path};
+
+use crate::{DEVELOP_BRANCH, MASTER_BRANCH};
 
 pub struct System;
 
@@ -109,7 +110,7 @@ impl System {
 
         match (need_pull).then(|| 0) {
             Some(_) => Ok(()),
-            _ => Err(anyhow!("Please run 'git fetch', 'git pull origin develop', 'git checkout master && git pull origin master'."))
+            _ => Err(anyhow!("Please run 'git fetch', 'git pull origin {develop}', 'git checkout {master} && git pull origin {master}'.", develop=*DEVELOP_BRANCH, master=*MASTER_BRANCH))
         }
     }
 
@@ -130,17 +131,6 @@ impl System {
         }
     }
 
-    fn get_gitflow_branch_name(&self, branch_name: String) -> Result<String, Error> {
-        let current_dir = env::current_dir().unwrap();
-        let path = format!("{}/.git/config", current_dir.display());
-        let config = Config::open(Path::new(&path))?;
-
-        let config_path = format!("gitflow.branch.{}", &branch_name);
-        let gitflow_branch_name = config.get_string(&config_path)?;
-
-        Ok(gitflow_branch_name)
-    }
-
     /// Perform system checks
     pub fn system_check(&self) -> Result<(), Error> {
         debug!("Checking for git.");
@@ -158,14 +148,12 @@ impl System {
         debug!("Checking if the repository has git-flow initialized.");
         self.is_git_flow_initialized()?;
 
-        let develop_branch = self.get_gitflow_branch_name("develop".to_string())?;
-        let master_branch = self.get_gitflow_branch_name("master".to_string())?;
         debug!("Checking if the repository is on the develop branch.");
-        self.is_on_branch(develop_branch.to_string())?;
+        self.is_on_branch(DEVELOP_BRANCH.to_string())?;
 
         debug!("Checking if upsteams are defined.");
-        self.is_upsteam_branch_defined(master_branch.to_string())?;
-        self.is_upsteam_branch_defined(develop_branch.to_string())?;
+        self.is_upsteam_branch_defined(MASTER_BRANCH.to_string())?;
+        self.is_upsteam_branch_defined(DEVELOP_BRANCH.to_string())?;
 
         debug!("Checking if the repository is up-to-date with origin.");
         self.is_repository_synced_with_origin()?;

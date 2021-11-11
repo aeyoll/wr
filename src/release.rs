@@ -8,6 +8,8 @@ use git2::{BranchType, PushOptions, Remote, Repository};
 use dialoguer::{theme::ColorfulTheme, Confirm};
 use duct::cmd;
 
+use crate::DEVELOP_BRANCH;
+
 pub struct Release {
     pub gitlab: Gitlab,
     pub repository: Repository,
@@ -93,7 +95,7 @@ impl Release {
                 .stderr_capture()
                 .read()?;
 
-                cmd!("git", "checkout", "develop")
+                cmd!("git", "checkout", DEVELOP_BRANCH.to_string())
                     .stdout_capture()
                     .stderr_capture()
                     .read()?;

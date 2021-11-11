@@ -1657,6 +1657,7 @@ dependencies = [
  "duct",
  "git2",
  "gitlab",
+ "lazy_static",
  "log",
  "semver",
  "simplelog",

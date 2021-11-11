@@ -8,6 +8,9 @@ use anyhow::{anyhow, Error};
 extern crate log;
 extern crate simplelog;
 
+#[macro_use]
+extern crate lazy_static;
+
 use git2::Repository;
 use simplelog::*;
 
@@ -28,7 +31,17 @@ use semver_type::SemverType;
 mod release;
 use release::Release;
 
+use crate::git::get_gitflow_branch_name;
+
 mod git;
+
+const DEVELOP: &str = "develop";
+const MASTER: &str = "master";
+
+lazy_static! {
+    static ref DEVELOP_BRANCH: String = get_gitflow_branch_name(DEVELOP);
+    static ref MASTER_BRANCH: String = get_gitflow_branch_name(MASTER);
+}
 
 fn app() -> Result<(), Error> {
     let yaml = load_yaml!("cli.yml");
