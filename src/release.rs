@@ -116,7 +116,7 @@ impl Release {
     /// Deploy to the production environment
     pub fn deploy_prod(&self) -> Result<(), Error> {
         let mut po = git2::PushOptions::new();
-        po.remote_callbacks(git::create_remove_callback().unwrap());
+        po.remote_callbacks(git::create_remote_callback().unwrap());
 
         let branches: Vec<String> = self
             .repository

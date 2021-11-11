@@ -7,7 +7,7 @@ pub fn ref_by_branch(branch: &str) -> String {
     format!("refs/heads/{}:refs/heads/{}", branch, branch)
 }
 
-pub fn create_remove_callback() -> Result<RemoteCallbacks<'static>, Error> {
+pub fn create_remote_callback() -> Result<RemoteCallbacks<'static>, Error> {
     let mut cb = RemoteCallbacks::new();
     cb.credentials(|_url, _username_from_url, _allowed_types| {
         Cred::ssh_key(
