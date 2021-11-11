@@ -1,12 +1,15 @@
 use anyhow::{anyhow, Error};
 use duct::cmd;
+use git2::{ErrorCode, Repository};
 use std::{env, path::Path};
 
 use crate::{DEVELOP_BRANCH, MASTER_BRANCH};
 
-pub struct System;
+pub struct System<'a> {
+    pub repository: &'a Repository,
+}
 
-impl System {
+impl System<'_> {
     /// Test if git is installed
     fn check_git(&self) -> Result<(), Error> {
         let output = cmd!("which", "git").stdout_capture().run()?;
@@ -68,10 +71,18 @@ impl System {
 
     /// Test the active branch in a git repository
     fn is_on_branch(&self, branch_name: String) -> Result<(), Error> {
-        let output = cmd!("git", "rev-parse", "--abbrev-ref", "HEAD")
-            .read()
-            .unwrap();
-        match (output == branch_name).then(|| 0) {
+        let head = match self.repository.head() {
+            Ok(head) => Some(head),
+            Err(ref e)
+                if e.code() == ErrorCode::UnbornBranch || e.code() == ErrorCode::NotFound =>
+            {
+                None
+            }
+            Err(e) => return Err(anyhow!(e)),
+        };
+        let head = head.as_ref().and_then(|h| h.shorthand());
+
+        match (head.unwrap() == branch_name).then(|| 0) {
             Some(_) => Ok(()),
             _ => Err(anyhow!("Please checkout the {} branch", branch_name)),
         }
@@ -113,7 +124,7 @@ impl System {
 
         match (need_pull).then(|| 0) {
             Some(_) => Err(anyhow!("Please update the repository first")),
-            _ => Ok(())
+            _ => Ok(()),
         }
     }
 

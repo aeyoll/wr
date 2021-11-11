@@ -11,7 +11,6 @@ extern crate simplelog;
 #[macro_use]
 extern crate lazy_static;
 
-use git2::Repository;
 use simplelog::*;
 
 use std::env;
@@ -31,7 +30,7 @@ use semver_type::SemverType;
 mod release;
 use release::Release;
 
-use crate::git::get_gitflow_branch_name;
+use crate::git::{get_gitflow_branch_name, get_repository};
 
 mod git;
 
@@ -65,8 +64,13 @@ fn app() -> Result<(), Error> {
     let gitlab_host = env::var("WR_GITLAB_HOST").unwrap_or_else(|_| "gitlab.com".to_string());
     let gitlab_token = env::var("WR_GITLAB_TOKEN").unwrap_or_else(|_| "".to_string());
 
+    // Repository
+    let repository = get_repository()?;
+
     // Run some system checks
-    let s = System;
+    let s = System {
+        repository: &repository,
+    };
     s.system_check()?;
 
     // Get environment
@@ -102,15 +106,9 @@ fn app() -> Result<(), Error> {
         }
     };
 
-    let current_dir = env::current_dir().unwrap();
-    let repository = match Repository::open(current_dir) {
-        Ok(repo) => repo,
-        Err(e) => return Err(anyhow!("Failed to open: {}", e)),
-    };
-
     let release = Release {
         gitlab,
-        repository,
+        repository: &repository,
         environment,
         semver_type,
     };

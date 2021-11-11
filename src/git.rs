@@ -1,7 +1,7 @@
 use std::{env, path::Path};
 
-use anyhow::Error;
-use git2::{Config, Cred, RemoteCallbacks};
+use anyhow::{anyhow, Error};
+use git2::{Config, Cred, RemoteCallbacks, Repository};
 
 pub fn ref_by_branch(branch: &str) -> String {
     format!("refs/heads/{}:refs/heads/{}", branch, branch)
@@ -28,4 +28,14 @@ pub fn get_gitflow_branch_name(branch: &str) -> String {
 
     let config_path = format!("gitflow.branch.{}", &branch);
     config.get_string(&config_path).unwrap()
+}
+
+pub fn get_repository() -> Result<Repository, Error> {
+    let current_dir = env::current_dir().unwrap();
+    let repository = match Repository::open(current_dir) {
+        Ok(repo) => repo,
+        Err(e) => return Err(anyhow!("Failed to open: {}", e)),
+    };
+
+    Ok(repository)
 }

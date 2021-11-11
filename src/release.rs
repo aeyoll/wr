@@ -3,21 +3,21 @@ use semver::Version;
 
 use crate::{environment::Environment, git, semver_type::SemverType};
 use anyhow::Error;
-use git2::{BranchType, PushOptions, Remote, Repository};
+use git2::{PushOptions, Remote, Repository};
 
 use dialoguer::{theme::ColorfulTheme, Confirm};
 use duct::cmd;
 
 use crate::{DEVELOP_BRANCH, MASTER_BRANCH};
 
-pub struct Release {
+pub struct Release<'a> {
     pub gitlab: Gitlab,
-    pub repository: Repository,
+    pub repository: &'a Repository,
     pub environment: Environment,
     pub semver_type: SemverType,
 }
 
-impl Release {
+impl Release<'_> {
     /// Fetch the latest tag from a git repository
     fn get_last_tag(&self) -> Result<Version, Error> {
         let tags = self.repository.tag_names(None).unwrap();
