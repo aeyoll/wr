@@ -102,14 +102,17 @@ impl System {
 
     /// Test if a repository is synced with the origin
     fn is_repository_synced_with_origin(&self) -> Result<(), Error> {
-        let local = cmd!("git", "rev-parse", "@").read()?;
-        let remote = cmd!("git", "rev-parse", "@{u}",).read()?;
-        let base = cmd!("git", "merge-base", "@", "@{u}",).read()?;
+        // Fetch first
+        cmd!("git", "fetch").read()?;
 
-        let need_pull = local != remote && local != base && remote == base;
+        // Then compare HEAD and upsteam
+        let head = cmd!("git", "rev-parse", "HEAD").read()?;
+        let upstream = cmd!("git", "rev-parse", "@{u}",).read()?;
+
+        let need_pull = head == upstream;
 
         match (need_pull).then(|| 0) {
-            Some(_) => Err(anyhow!("Please run 'git fetch', 'git pull origin {develop}', 'git checkout {master} && git pull origin {master}'.", develop=*DEVELOP_BRANCH, master=*MASTER_BRANCH)),
+            Some(_) => Err(anyhow!("Please update the repository first")),
             _ => Ok(())
         }
     }
