@@ -109,7 +109,7 @@ impl Release {
 
     /// Deploy to the staging environment
     pub fn deploy_staging(&self) -> Result<(), Error> {
-        self.push_branch("develop".to_string())?;
+        self.push_branch(DEVELOP_BRANCH.to_string())?;
         Ok(())
     }
 
