@@ -115,9 +115,9 @@ impl System {
     }
 
     /// Test if the repository has a .gitlab-ci.yml
-    // fn has_gitlab_ci(&self) -> bool {
-    //     self.file_exists(".gitlab-ci.yml".to_string())
-    // }
+    fn has_gitlab_ci(&self) -> bool {
+        self.file_exists(".gitlab-ci.yml".to_string())
+    }
 
     /// Test if repository is clean
     fn is_repository_clean(&self) -> Result<(), Error> {
@@ -158,14 +158,12 @@ impl System {
         debug!("Checking if the repository is up-to-date with origin.");
         self.is_repository_synced_with_origin()?;
 
-        /*
-        info!("Checking for .gitlab-ci.yml.");
+        debug!("Checking for .gitlab-ci.yml.");
         if self.has_gitlab_ci() {
-            info!(".gitlab-ci.yml found");
+            debug!(".gitlab-ci.yml found");
         } else {
             warn!(".gitlab-ci.yml not found");
         }
-        */
 
         debug!("Checking if repository is clean.");
         self.is_repository_clean()?;
