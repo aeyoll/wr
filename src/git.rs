@@ -7,15 +7,11 @@ pub fn ref_by_branch(branch: &str) -> String {
     format!("refs/heads/{}:refs/heads/{}", branch, branch)
 }
 
+/// Fetch credentials from the ssh-agent
 pub fn create_remote_callback() -> Result<RemoteCallbacks<'static>, Error> {
     let mut cb = RemoteCallbacks::new();
-    cb.credentials(|_url, _username_from_url, _allowed_types| {
-        Cred::ssh_key(
-            "git",
-            None,
-            std::path::Path::new(&format!("{}/.ssh/id_rsa", env::var("HOME").unwrap())),
-            None,
-        )
+    cb.credentials(|_url, username_from_url, _allowed_types| {
+        Cred::ssh_key_from_agent(username_from_url.unwrap())
     });
 
     Ok(cb)

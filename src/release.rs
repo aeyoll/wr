@@ -107,6 +107,12 @@ impl Release {
         Ok(())
     }
 
+    pub fn get_push_options(&self) -> PushOptions<'static> {
+        let mut push_options = git2::PushOptions::new();
+        push_options.remote_callbacks(git::create_remote_callback().unwrap());
+        push_options
+    }
+
     /// Deploy to the staging environment
     pub fn deploy_staging(&self) -> Result<(), Error> {
         self.push_branch(DEVELOP_BRANCH.to_string())?;
@@ -115,8 +121,7 @@ impl Release {
 
     /// Deploy to the production environment
     pub fn deploy_prod(&self) -> Result<(), Error> {
-        let mut po = git2::PushOptions::new();
-        po.remote_callbacks(git::create_remote_callback().unwrap());
+        let mut push_options = self.get_push_options();
 
         let branches: Vec<String> = self
             .repository
@@ -129,7 +134,7 @@ impl Release {
         let refs: Vec<String> = branches.iter().map(|a| git::ref_by_branch(a)).collect();
 
         let mut remote = self.get_remote()?;
-        remote.push(&refs, Some(&mut po))?;
+        remote.push(&refs, Some(&mut push_options))?;
         Ok(())
     }
 

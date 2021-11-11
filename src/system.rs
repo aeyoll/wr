@@ -148,7 +148,10 @@ impl System {
         debug!("Checking if the repository has git-flow initialized.");
         self.is_git_flow_initialized()?;
 
-        debug!("Checking if the repository is on the {} branch.", DEVELOP_BRANCH.to_string());
+        debug!(
+            "Checking if the repository is on the {} branch.",
+            DEVELOP_BRANCH.to_string()
+        );
         self.is_on_branch(DEVELOP_BRANCH.to_string())?;
 
         debug!("Checking if upsteams are defined.");
