@@ -1,6 +1,6 @@
 use anyhow::{anyhow, Error};
 use duct::cmd;
-use git2::{ErrorCode, Repository};
+use git2::{ErrorCode, Repository, StatusOptions};
 use std::{env, path::Path};
 
 use crate::{DEVELOP_BRANCH, MASTER_BRANCH};
@@ -135,12 +135,15 @@ impl System<'_> {
 
     /// Test if repository is clean
     fn is_repository_clean(&self) -> Result<(), Error> {
-        let output = cmd!("git", "status", "--porcelain",).read()?;
+        let mut opts = StatusOptions::new();
+        opts.include_untracked(true);
 
-        match (output.is_empty()).then(|| 0) {
+        let statuses = self.repository.statuses(Some(&mut opts))?;
+
+        match (statuses.is_empty()).then(|| 0) {
             Some(_) => Ok(()),
             _ => Err(anyhow!(
-                "Dirty. Please commit your last changes before running wr."
+                "Repository is dirty. Please commit or stash your last changes before running wr."
             )),
         }
     }
