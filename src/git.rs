@@ -1,7 +1,9 @@
 use std::{env, path::Path};
 
 use anyhow::{anyhow, Error};
-use git2::{Config, Cred, RemoteCallbacks, Repository};
+use git2::{Config, Cred, Remote, RemoteCallbacks, Repository};
+
+use crate::{DEVELOP_BRANCH, MASTER_BRANCH};
 
 pub fn ref_by_branch(branch: &str) -> String {
     format!("refs/heads/{}:refs/heads/{}", branch, branch)
@@ -38,4 +40,16 @@ pub fn get_repository() -> Result<Repository, Error> {
     };
 
     Ok(repository)
+}
+
+pub fn get_remote(repository: &Repository) -> Result<Remote, Error> {
+    let remote = repository.find_remote("origin")?;
+
+    Ok(remote)
+}
+
+pub fn get_gitflow_branches_refs() -> Vec<String> {
+    let branches = vec![MASTER_BRANCH.to_string(), DEVELOP_BRANCH.to_string()];
+    let branches_refs: Vec<String> = branches.iter().map(|a| ref_by_branch(a)).collect();
+    branches_refs
 }

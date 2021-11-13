@@ -1,14 +1,18 @@
 use gitlab::Gitlab;
 use semver::Version;
 
-use crate::{environment::Environment, git, semver_type::SemverType};
+use crate::{
+    environment::Environment,
+    git::{self, get_gitflow_branches_refs, get_remote},
+    semver_type::SemverType,
+};
 use anyhow::Error;
-use git2::{PushOptions, Remote, Repository};
+use git2::{PushOptions, Repository};
 
 use dialoguer::{theme::ColorfulTheme, Confirm};
 use duct::cmd;
 
-use crate::{DEVELOP_BRANCH, MASTER_BRANCH};
+use crate::DEVELOP_BRANCH;
 
 pub struct Release<'a> {
     pub gitlab: Gitlab,
@@ -46,16 +50,9 @@ impl Release<'_> {
         Ok(next_tag)
     }
 
-    /// Fetch the remote
-    fn get_remote(&self) -> Result<Remote, Error> {
-        let remote = self.repository.find_remote("origin")?;
-
-        Ok(remote)
-    }
-
     ///
     fn push_branch(&self, branch_name: String) -> Result<(), Error> {
-        let mut remote = self.get_remote()?;
+        let mut remote = get_remote(self.repository)?;
 
         remote.push(
             &[git::ref_by_branch(&branch_name)],
@@ -133,9 +130,8 @@ impl Release<'_> {
         //     .collect();
 
         // Push master and develop branches
-        let branches = vec![MASTER_BRANCH.to_string(), DEVELOP_BRANCH.to_string()];
-        let branches_refs: Vec<String> = branches.iter().map(|a| git::ref_by_branch(a)).collect();
-        let mut remote = self.get_remote()?;
+        let branches_refs: Vec<String> = get_gitflow_branches_refs();
+        let mut remote = get_remote(self.repository)?;
         remote.push(&branches_refs, Some(&mut push_options))?;
 
         // Push all tags

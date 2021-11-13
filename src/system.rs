@@ -1,9 +1,12 @@
 use anyhow::{anyhow, Error};
 use duct::cmd;
-use git2::{ErrorCode, Repository, StatusOptions};
+use git2::{ErrorCode, FetchOptions, Repository, StatusOptions};
 use std::{env, path::Path};
 
-use crate::{DEVELOP_BRANCH, MASTER_BRANCH};
+use crate::{
+    git::{self, get_gitflow_branches_refs, get_remote},
+    DEVELOP_BRANCH, MASTER_BRANCH,
+};
 
 pub struct System<'a> {
     pub repository: &'a Repository,
@@ -113,18 +116,25 @@ impl System<'_> {
 
     /// Test if a repository is synced with the origin
     fn is_repository_synced_with_origin(&self) -> Result<(), Error> {
+        let mut fetch_options = FetchOptions::new();
+        fetch_options.remote_callbacks(git::create_remote_callback().unwrap());
+        fetch_options.download_tags(git2::AutotagOption::All);
+
+        let mut remote = get_remote(self.repository)?;
+
         // Fetch first
-        cmd!("git", "fetch").read()?;
+        let branches_refs: Vec<String> = get_gitflow_branches_refs();
+        remote.fetch(&branches_refs, Some(&mut fetch_options), None)?;
 
-        // Then compare HEAD and upsteam
-        let head = cmd!("git", "rev-parse", "HEAD").read()?;
-        let upstream = cmd!("git", "rev-parse", "@{u}",).read()?;
+        // Then compare local and remote
+        let local = self.repository.revparse("@{0}")?.from().unwrap().id();
+        let remote = self.repository.revparse("@{u}")?.from().unwrap().id();
 
-        let need_pull = head == upstream;
+        let is_up_to_date = local == remote;
 
-        match (need_pull).then(|| 0) {
-            Some(_) => Err(anyhow!("Please update the repository first")),
-            _ => Ok(()),
+        match (is_up_to_date).then(|| 0) {
+            Some(_) => Ok(()),
+            _ => Err(anyhow!("Please update the repository first")),
         }
     }
 
