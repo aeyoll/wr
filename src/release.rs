@@ -111,13 +111,13 @@ impl Release<'_> {
     }
 
     /// Deploy to the staging environment
-    pub fn deploy_staging(&self) -> Result<(), Error> {
+    pub fn push_staging(&self) -> Result<(), Error> {
         self.push_branch(DEVELOP_BRANCH.to_string())?;
         Ok(())
     }
 
     /// Deploy to the production environment
-    pub fn deploy_prod(&self) -> Result<(), Error> {
+    pub fn push_production(&self) -> Result<(), Error> {
         let mut push_options = self.get_push_options();
 
         // Push master and develop branches
@@ -140,9 +140,9 @@ impl Release<'_> {
     /// Deploy the release
     pub fn deploy(&self) -> Result<(), Error> {
         if self.environment == Environment::Production {
-            self.deploy_prod()?;
+            self.push_production()?;
         } else if self.environment == Environment::Staging {
-            self.deploy_staging()?;
+            self.push_staging()?;
         }
 
         Ok(())
