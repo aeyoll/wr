@@ -120,15 +120,6 @@ impl Release<'_> {
     pub fn deploy_prod(&self) -> Result<(), Error> {
         let mut push_options = self.get_push_options();
 
-        // Get all branches refs
-        // let branches: Vec<String> = self
-        //     .repository
-        //     .branches(Some(BranchType::Local))
-        //     .unwrap()
-        //     .map(|a| a.unwrap())
-        //     .map(|(a, _)| a.name().unwrap().unwrap().to_string())
-        //     .collect();
-
         // Push master and develop branches
         let branches_refs: Vec<String> = get_gitflow_branches_refs();
         let mut remote = get_remote(self.repository)?;
