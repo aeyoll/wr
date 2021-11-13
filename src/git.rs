@@ -36,7 +36,7 @@ pub fn get_repository() -> Result<Repository, Error> {
     let current_dir = env::current_dir().unwrap();
     let repository = match Repository::open(current_dir) {
         Ok(repo) => repo,
-        Err(e) => return Err(anyhow!("Failed to open: {}", e)),
+        Err(_) => return Err(anyhow!("Please launch wr in a git repository.")),
     };
 
     Ok(repository)

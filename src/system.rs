@@ -51,14 +51,6 @@ impl System<'_> {
         Path::new(&path).exists()
     }
 
-    /// Test is the command is launched into a git directory
-    fn has_git_repository(&self) -> Result<(), Error> {
-        match self.file_exists(".git/config".to_string()).then(|| 0) {
-            Some(_) => Ok(()),
-            _ => Err(anyhow!("Please launch wr in a git repository")),
-        }
-    }
-
     /// Test if the repository is initializated with git flow
     fn is_git_flow_initialized(&self) -> Result<(), Error> {
         let output = cmd!("git", "flow", "config")
@@ -168,9 +160,6 @@ impl System<'_> {
 
         debug!("Checking for git-flow version.");
         self.check_git_flow_version()?;
-
-        debug!("Checking for git repository.");
-        self.has_git_repository()?;
 
         debug!("Checking if the repository has git-flow initialized.");
         self.is_git_flow_initialized()?;
