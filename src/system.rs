@@ -83,20 +83,12 @@ impl System<'_> {
         }
     }
 
-    /// Test if an upstream branch is correclty defined
+    /// Test if an upstream branch is correctly defined
     fn is_upsteam_branch_defined(&self, branch_name: String) -> Result<(), Error> {
-        let output = cmd!(
-            "git",
-            "rev-parse",
-            "--symbolic-full-name",
-            "--abbrev-ref",
-            format!("{branch_name}@{{u}}", branch_name = branch_name)
-        )
-        .stdout_capture()
-        .stderr_capture()
-        .run();
+        let spec = format!("{branch_name}@{{u}}", branch_name = branch_name);
+        let revspec = self.repository.revparse(&spec);
 
-        match output {
+        match revspec {
             Ok(_) => Ok(()),
             Err(_) => Err(anyhow!("
                 Upstream branches are not correctly defined.
