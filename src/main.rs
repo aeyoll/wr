@@ -30,6 +30,7 @@ use semver_type::SemverType;
 mod release;
 use release::Release;
 
+use crate::git::get_project_name;
 use crate::git::{get_gitflow_branch_name, get_repository};
 
 mod git;
@@ -40,6 +41,7 @@ const MASTER: &str = "master";
 lazy_static! {
     static ref DEVELOP_BRANCH: String = get_gitflow_branch_name(DEVELOP);
     static ref MASTER_BRANCH: String = get_gitflow_branch_name(MASTER);
+    static ref PROJECT_NAME: String = get_project_name();
 }
 
 fn app() -> Result<(), Error> {
@@ -113,6 +115,7 @@ fn app() -> Result<(), Error> {
         semver_type,
     };
     release.create()?;
+    release.push()?;
 
     if deploy {
         release.deploy()?;

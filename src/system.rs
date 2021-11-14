@@ -166,8 +166,8 @@ impl System<'_> {
         self.is_upsteam_branch_defined(MASTER_BRANCH.to_string())?;
         self.is_upsteam_branch_defined(DEVELOP_BRANCH.to_string())?;
 
-        debug!("Checking if the repository is up-to-date with origin.");
-        self.is_repository_synced_with_origin()?;
+        // debug!("Checking if the repository is up-to-date with origin.");
+        // self.is_repository_synced_with_origin()?;
 
         debug!("Checking for .gitlab-ci.yml.");
         if self.has_gitlab_ci() {

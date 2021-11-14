@@ -1,5 +1,9 @@
-use gitlab::Gitlab;
 use semver::Version;
+use std::thread::sleep;
+use std::time::Duration;
+use std::{thread, time};
+
+use spinners::{Spinner, Spinners};
 
 use crate::{
     environment::Environment,
@@ -8,11 +12,22 @@ use crate::{
 };
 use anyhow::Error;
 use git2::{PushOptions, Repository};
+use gitlab::{
+    api::{
+        common::SortOrder,
+        projects::{
+            self,
+            pipelines::{PipelineOrderBy, PipelineStatus},
+        },
+        Query,
+    },
+    Gitlab, Job, Pipeline, StatusState,
+};
 
 use dialoguer::{theme::ColorfulTheme, Confirm};
 use duct::cmd;
 
-use crate::DEVELOP_BRANCH;
+use crate::{DEVELOP_BRANCH, MASTER_BRANCH, PROJECT_NAME};
 
 pub struct Release<'a> {
     pub gitlab: Gitlab,
@@ -52,18 +67,15 @@ impl Release<'_> {
 
     ///
     fn push_branch(&self, branch_name: String) -> Result<(), Error> {
+        let mut push_options = self.get_push_options();
         let mut remote = get_remote(self.repository)?;
 
-        remote.push(
-            &[git::ref_by_branch(&branch_name)],
-            Some(&mut PushOptions::new()),
-        )?;
+        remote.push(&[git::ref_by_branch(&branch_name)], Some(&mut push_options))?;
 
         Ok(())
     }
 
-    /// Create the new release
-    pub fn create(&self) -> Result<(), Error> {
+    pub fn create_production_release(&self) -> Result<(), Error> {
         let next_tag = self.get_next_tag()?;
 
         info!("This will create release tag {}.", next_tag);
@@ -104,6 +116,16 @@ impl Release<'_> {
         Ok(())
     }
 
+    /// Create the new release
+    pub fn create(&self) -> Result<(), Error> {
+        match self.environment {
+            Environment::Staging => self.push_staging()?,
+            Environment::Production => self.create_production_release()?,
+        }
+
+        Ok(())
+    }
+
     pub fn get_push_options(&self) -> PushOptions<'static> {
         let mut push_options = git2::PushOptions::new();
         push_options.remote_callbacks(git::create_remote_callback().unwrap());
@@ -137,12 +159,127 @@ impl Release<'_> {
         Ok(())
     }
 
-    /// Deploy the release
+    /// Push the release
+    pub fn push(&self) -> Result<(), Error> {
+        match self.environment {
+            Environment::Production => self.push_production()?,
+            Environment::Staging => self.push_staging()?,
+        }
+
+        Ok(())
+    }
+
+    ///
+    pub fn get_deploy_job_name(&self) -> Result<String, Error> {
+        let job_name = match self.environment {
+            Environment::Production => "deploy_prod".to_string(),
+            Environment::Staging => "deploy_staging".to_string(),
+        };
+
+        Ok(job_name)
+    }
+
+    ///
+    pub fn get_pipeline_ref(&self) -> Result<String, Error> {
+        let pipeline_ref = match self.environment {
+            Environment::Production => MASTER_BRANCH.to_string(),
+            Environment::Staging => DEVELOP_BRANCH.to_string(),
+        };
+
+        Ok(pipeline_ref)
+    }
+
+    ///
+    pub fn get_job(&self, job_id: u64) -> Result<Job, Error> {
+        let job_endpoint = gitlab::api::projects::jobs::Job::builder()
+            .project(PROJECT_NAME.to_string())
+            .job(job_id)
+            .build()
+            .unwrap();
+        let job: Job = job_endpoint.query(&self.gitlab)?;
+        Ok(job)
+    }
+
+    ///
     pub fn deploy(&self) -> Result<(), Error> {
-        if self.environment == Environment::Production {
-            self.push_production()?;
-        } else if self.environment == Environment::Staging {
-            self.push_staging()?;
+        info!("Waiting 3s for the pipeline to be created...");
+
+        let three_seconds = time::Duration::from_secs(3);
+        thread::sleep(three_seconds);
+
+        let pipeline_ref = self.get_pipeline_ref()?;
+
+        let pipelines_endpoint = projects::pipelines::Pipelines::builder()
+            .project(PROJECT_NAME.to_string())
+            .ref_(pipeline_ref)
+            .order_by(PipelineOrderBy::Id)
+            .sort(SortOrder::Descending)
+            .status(PipelineStatus::Running)
+            .build()
+            .unwrap();
+
+        let pipelines: Vec<Pipeline> = pipelines_endpoint.query(&self.gitlab)?;
+        let last_pipeline: Pipeline = pipelines.into_iter().next().unwrap();
+        let last_pipeline_id: u64 = last_pipeline.id.value();
+
+        let jobs_endpoint = gitlab::api::projects::pipelines::PipelineJobs::builder()
+            .project(PROJECT_NAME.to_string())
+            .pipeline(last_pipeline_id)
+            .build()
+            .unwrap();
+
+        let jobs: Vec<Job> = jobs_endpoint.query(&self.gitlab)?;
+
+        let deploy_job_name = self.get_deploy_job_name()?;
+
+        for job in jobs {
+            // Only trigger "deploy" jobs
+            let is_deploy_job = job.name.contains(&deploy_job_name)
+                && job.status != StatusState::Failed
+                && job.status != StatusState::Success;
+
+            if is_deploy_job {
+                // While the job has the "created" state, it means other jobs
+                // are pending before.
+                let mut job_status = job.status;
+                let sp = Spinner::new(
+                    &Spinners::Dots9,
+                    "Waiting for previous jobs to be over...".into(),
+                );
+
+                while job_status == StatusState::Created {
+                    sleep(Duration::from_secs(1));
+                    let job: Job = self.get_job(job.id.value())?;
+                    job_status = job.status;
+                }
+
+                sp.stop();
+
+                info!("Playing job {}", job.name);
+                let play_job_endpoint = gitlab::api::projects::jobs::PlayJob::builder()
+                    .project(PROJECT_NAME.to_string())
+                    .job(job.id.value())
+                    .build()
+                    .unwrap();
+
+                play_job_endpoint.query(&self.gitlab)?;
+
+                // Wait for the deploy job to be over
+                let mut job: Job = self.get_job(job.id.value())?;
+
+                while job.status != StatusState::Failed && job.status != StatusState::Success {
+                    sleep(Duration::from_secs(1));
+                    job = self.get_job(job.id.value())?;
+                }
+
+                if job.status == StatusState::Failed {
+                    error!("Job {} failed", job.name);
+                } else if job.status == StatusState::Success {
+                    info!("Job {} succeded", job.name)
+                }
+
+                break;
+            }
         }
 
         Ok(())
