@@ -10,7 +10,7 @@ use crate::{
     git::{self, get_gitflow_branches_refs, get_remote},
     semver_type::SemverType,
 };
-use anyhow::Error;
+use anyhow::{anyhow, Error};
 use git2::{PushOptions, Repository};
 use gitlab::{
     api::{
@@ -41,26 +41,35 @@ impl Release<'_> {
     fn get_last_tag(&self) -> Result<Version, Error> {
         let tags = self.repository.tag_names(None).unwrap();
 
-        let latest = tags
+        let latest_tag = tags
             .iter()
             .map(|x| Version::parse(x.unwrap()).unwrap())
-            .max_by(|x, y| x.cmp(y))
-            .unwrap();
+            .max_by(|x, y| x.cmp(y));
 
-        Ok(latest)
+        match latest_tag {
+            Some(version) => Ok(version),
+            None => Err(anyhow!("No tag found")),
+        }
     }
 
     /// Compute the next tag from the existing tag
     fn get_next_tag(&self) -> Result<Version, Error> {
-        let default_version = Version::parse("1.0.0").unwrap();
-        let last_tag = self.get_last_tag().unwrap_or(default_version);
-        let mut next_tag = last_tag;
+        let last_tag = self.get_last_tag();
 
-        match self.semver_type {
-            SemverType::Major => next_tag.major += 1,
-            SemverType::Minor => next_tag.minor += 1,
-            SemverType::Patch => next_tag.patch += 1,
-        }
+        let next_tag: Version = match last_tag {
+            Ok(last_tag) => {
+                let mut next_tag = last_tag;
+
+                match self.semver_type {
+                    SemverType::Major => next_tag.major += 1,
+                    SemverType::Minor => next_tag.minor += 1,
+                    SemverType::Patch => next_tag.patch += 1,
+                }
+
+                next_tag
+            }
+            Err(_) => Version::new(1, 0, 0),
+        };
 
         Ok(next_tag)
     }
