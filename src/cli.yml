@@ -17,4 +17,6 @@ args:
         long: semver_type
         help: "Define how to increment the version number (available \"Patch\", \"Minor\", \"Major\")"
         takes_value: true
-
+    - debug:
+        long: debug
+        help: "Print additionals debug informations"

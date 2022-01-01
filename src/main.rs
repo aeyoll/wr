@@ -48,14 +48,20 @@ fn app() -> Result<(), Error> {
     let yaml = load_yaml!("cli.yml");
     let matches = App::from_yaml(yaml).get_matches();
 
+    // Get the logger filter level
+    let level = if matches.is_present("debug") {
+        LevelFilter::Debug
+    } else{
+        LevelFilter::Info
+    };
+
     // Define the logger
-    CombinedLogger::init(vec![TermLogger::new(
-        LevelFilter::Info,
+    TermLogger::init(
+        level,
         Config::default(),
         TerminalMode::Mixed,
         ColorChoice::Auto,
-    )])
-    .unwrap();
+    ).unwrap();
 
     // Set some env variables
     env::set_var("LANG", "en_US.UTF-8");
