@@ -64,17 +64,21 @@ pub fn get_project_name() -> String {
 }
 
 pub fn get_repository() -> Result<Repository, Error> {
+    debug!("Try to load the current repository.");
     let current_dir = env::current_dir().unwrap();
     let repository = match Repository::open(current_dir) {
         Ok(repo) => repo,
         Err(_) => return Err(anyhow!("Please launch wr in a git repository.")),
     };
+    debug!("Found git repository.");
 
     Ok(repository)
 }
 
 pub fn get_remote(repository: &Repository) -> Result<Remote, Error> {
+    debug!("Try to find the remote for current repository.");
     let remote = repository.find_remote("origin")?;
+    debug!("Found git repository's remote.");
 
     Ok(remote)
 }

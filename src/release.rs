@@ -4,8 +4,6 @@ use std::thread::sleep;
 use std::time::Duration;
 use std::{thread, time};
 
-use spinners::{Spinner, Spinners};
-
 use crate::{
     environment::Environment,
     git::{self, get_gitflow_branches_refs, get_remote},
@@ -224,7 +222,7 @@ impl Release<'_> {
 
     ///
     pub fn deploy(&self) -> Result<(), Error> {
-        info!("Waiting 3s for the pipeline to be created...");
+        info!("[Deploy] Waiting 3s for the pipeline to be created.");
 
         let three_seconds = time::Duration::from_secs(3);
         thread::sleep(three_seconds);
@@ -265,19 +263,13 @@ impl Release<'_> {
                 // While the job has the "created" state, it means other jobs
                 // are pending before.
                 let mut job_status = job.status;
-                let sp = Spinner::new(
-                    &Spinners::Dots9,
-                    "Waiting for previous jobs to be over".into(),
-                );
+                info!("[Deploy] Waiting for previous jobs to be over.");
 
                 while job_status == StatusState::Created {
                     sleep(Duration::from_secs(1));
                     let job: Job = self.get_job(job.id.value())?;
                     job_status = job.status;
                 }
-
-                sp.stop();
-                println!();
 
                 // Trigger the deploy job
                 let play_job_endpoint = gitlab::api::projects::jobs::PlayJob::builder()
@@ -288,10 +280,7 @@ impl Release<'_> {
 
                 gitlab::api::ignore(play_job_endpoint).query(&self.gitlab)?;
 
-                let sp = Spinner::new(
-                    &Spinners::Dots9,
-                    format!("Playing \"{}\" job", job.name),
-                );
+                info!("[Deploy] Playing \"{}\" job.", job.name);
 
                 let mut job: Job = self.get_job(job.id.value())?;
 
@@ -300,13 +289,10 @@ impl Release<'_> {
                     job = self.get_job(job.id.value())?;
                 }
 
-                sp.stop();
-                println!();
-
                 if job.status == StatusState::Failed {
-                    error!("Job {} failed", job.name);
+                    error!("[Deploy] \"{}\" job failed", job.name);
                 } else if job.status == StatusState::Success {
-                    info!("Job {} succeded", job.name)
+                    info!("[Deploy] \"{}\" job succeded", job.name)
                 }
 
                 break;

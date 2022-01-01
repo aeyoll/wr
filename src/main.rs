@@ -11,8 +11,8 @@ extern crate simplelog;
 #[macro_use]
 extern crate lazy_static;
 
-use simplelog::*;
 use indicatif::HumanDuration;
+use simplelog::*;
 
 use std::env;
 use std::process;
@@ -71,22 +71,23 @@ fn app() -> Result<(), Error> {
     env::set_var("GIT_MERGE_AUTOEDIT", "no");
 
     // Init
-    info!("Welcome to wr");
+    info!("Welcome to wr.");
     let gitlab_host = env::var("WR_GITLAB_HOST").unwrap_or_else(|_| "gitlab.com".to_string());
     let gitlab_token = env::var("WR_GITLAB_TOKEN").unwrap_or_else(|_| "".to_string());
 
-    // Repository
+    // Get a git2 "Repository" struct
     let repository = get_repository()?;
 
     // Run some system checks
+    // This will ensure that everything is in place to do the deployment
     let s = System {
         repository: &repository,
     };
-    info!("Performing system checks...");
+    info!("[Setup] Performing system checks.");
     s.system_check()?;
 
     // Get environment
-    debug!("Get environment");
+    debug!("Getting the environment name from the arguments.");
     let environment: Environment = match matches
         .value_of("environment")
         .unwrap_or(&Environment::Production.to_string())
@@ -95,9 +96,13 @@ fn app() -> Result<(), Error> {
         Ok(environment) => environment,
         Err(e) => return Err(anyhow!("{}", e.to_string())),
     };
+    info!(
+        "[Setup] {} environment was found from the arguments.",
+        environment
+    );
 
     // Get semver type
-    debug!("Get semver type");
+    debug!("Getting the semver type from the arguments.");
     let semver_type: SemverType = match matches
         .value_of("semver_type")
         .unwrap_or(&SemverType::Patch.to_string())
@@ -106,15 +111,17 @@ fn app() -> Result<(), Error> {
         Ok(semver_type) => semver_type,
         Err(e) => return Err(anyhow!("{}", e.to_string())),
     };
+    info!(
+        "[Setup] {} semver type was found from the arguments.",
+        semver_type
+    );
 
-    let deploy = matches.is_present("deploy");
-
-    debug!("Get gitlab instance");
+    info!("[Setup] Login into Gitlab instance \"{}\".", gitlab_host);
     let gitlab = match Gitlab::new(&gitlab_host, &gitlab_token) {
         Ok(client) => client,
         Err(e) => {
             return Err(anyhow!(
-                "Failed to connect to {} with token {} ({:?})",
+                "Failed to connect to Gitlab instance \"{}\", with token \"{}\" ({:?})",
                 &gitlab_host,
                 &gitlab_token,
                 e
@@ -129,17 +136,28 @@ fn app() -> Result<(), Error> {
         semver_type,
     };
 
-    debug!("Creating new release");
+    debug!("[Release] Creating a new {} release.", environment);
     release.create()?;
-    debug!("New release created");
+    info!("[Release] A new {} release has been created.", environment);
 
-    debug!("Pushing the release to the remote repository");
+    debug!(
+        "[Release] Pushing the {} release to the remote repository.",
+        environment
+    );
     release.push()?;
-    debug!("Release pushed to the remote repository");
+    info!(
+        "[Release] {} release has been pushed to the remote repository.",
+        environment
+    );
 
+    let deploy = matches.is_present("deploy");
     if deploy {
-        debug!("Deploy flag found, trying to play the \"deploy\" job");
-        release.deploy()?;
+        if s.has_gitlab_ci() {
+            debug!("\"deploy\" flag was found, trying to play the \"deploy\" job.");
+            release.deploy()?;
+        } else {
+            warn!("\"deploy\" flag was found, but the repository has no \".gitlab-ci.yml\" file, impossible to deploy.")
+        }
     }
 
     Ok(())
@@ -150,11 +168,10 @@ fn main() {
 
     process::exit(match app() {
         Ok(_) => {
-            println!("Done in {}", HumanDuration(started.elapsed()));
+            info!("Done in {}.", HumanDuration(started.elapsed()));
             0
         }
         Err(err) => {
-            println!();
             error!("{}", err.to_string());
             1
         }

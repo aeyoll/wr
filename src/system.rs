@@ -123,7 +123,7 @@ impl System<'_> {
     }
 
     /// Test if the repository has a .gitlab-ci.yml
-    fn has_gitlab_ci(&self) -> bool {
+    pub fn has_gitlab_ci(&self) -> bool {
         self.file_exists(".gitlab-ci.yml".to_string())
     }
 
