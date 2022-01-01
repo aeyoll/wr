@@ -12,9 +12,11 @@ extern crate simplelog;
 extern crate lazy_static;
 
 use simplelog::*;
+use indicatif::HumanDuration;
 
 use std::env;
 use std::process;
+use std::time::Instant;
 
 use gitlab::Gitlab;
 
@@ -144,8 +146,13 @@ fn app() -> Result<(), Error> {
 }
 
 fn main() {
+    let started = Instant::now();
+
     process::exit(match app() {
-        Ok(_) => 0,
+        Ok(_) => {
+            println!("Done in {}", HumanDuration(started.elapsed()));
+            0
+        }
         Err(err) => {
             println!();
             error!("{}", err.to_string());
