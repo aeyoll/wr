@@ -1,3 +1,4 @@
+use chrono::{DateTime, Local};
 use semver::Version;
 use std::thread::sleep;
 use std::time::Duration;
@@ -21,13 +22,25 @@ use gitlab::{
         },
         Query,
     },
-    Gitlab, Job, Pipeline, StatusState,
+    Gitlab, Job, StatusState,
 };
 
 use dialoguer::{theme::ColorfulTheme, Confirm};
 use duct::cmd;
+use serde::{Deserialize, Serialize};
 
 use crate::{DEVELOP_BRANCH, MASTER_BRANCH, PROJECT_NAME};
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+struct Pipeline {
+    id: u64,
+    status: String,
+    r#ref: String,
+    sha: String,
+    web_url: String,
+    created_at: DateTime<Local>,
+    updated_at: DateTime<Local>,
+}
 
 pub struct Release<'a> {
     pub gitlab: Gitlab,
@@ -128,8 +141,8 @@ impl Release<'_> {
     /// Create the new release
     pub fn create(&self) -> Result<(), Error> {
         match self.environment {
-            Environment::Staging => self.push_staging()?,
             Environment::Production => self.create_production_release()?,
+            Environment::Staging => {}
         }
 
         Ok(())
@@ -161,7 +174,7 @@ impl Release<'_> {
         let tag_refs: Vec<String> = tags
             .iter()
             .map(|a| a.unwrap())
-            .map(|a| git::ref_by_tag(a))
+            .map(git::ref_by_tag)
             .collect();
         remote.push(&tag_refs, Some(&mut push_options))?;
 
@@ -228,8 +241,9 @@ impl Release<'_> {
             .unwrap();
 
         let pipelines: Vec<Pipeline> = pipelines_endpoint.query(&self.gitlab)?;
+
         let last_pipeline: Pipeline = pipelines.into_iter().next().unwrap();
-        let last_pipeline_id: u64 = last_pipeline.id.value();
+        let last_pipeline_id: u64 = last_pipeline.id;
 
         let jobs_endpoint = gitlab::api::projects::pipelines::PipelineJobs::builder()
             .project(PROJECT_NAME.to_string())
@@ -253,7 +267,7 @@ impl Release<'_> {
                 let mut job_status = job.status;
                 let sp = Spinner::new(
                     &Spinners::Dots9,
-                    "Waiting for previous jobs to be over...".into(),
+                    "Waiting for previous jobs to be over".into(),
                 );
 
                 while job_status == StatusState::Created {
@@ -263,23 +277,31 @@ impl Release<'_> {
                 }
 
                 sp.stop();
+                println!();
 
-                info!("Playing job {}", job.name);
+                // Trigger the deploy job
                 let play_job_endpoint = gitlab::api::projects::jobs::PlayJob::builder()
                     .project(PROJECT_NAME.to_string())
                     .job(job.id.value())
                     .build()
                     .unwrap();
 
-                play_job_endpoint.query(&self.gitlab)?;
+                gitlab::api::ignore(play_job_endpoint).query(&self.gitlab)?;
 
-                // Wait for the deploy job to be over
+                let sp = Spinner::new(
+                    &Spinners::Dots9,
+                    format!("Playing \"{}\" job", job.name),
+                );
+
                 let mut job: Job = self.get_job(job.id.value())?;
 
                 while job.status != StatusState::Failed && job.status != StatusState::Success {
                     sleep(Duration::from_secs(1));
                     job = self.get_job(job.id.value())?;
                 }
+
+                sp.stop();
+                println!();
 
                 if job.status == StatusState::Failed {
                     error!("Job {} failed", job.name);

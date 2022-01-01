@@ -51,7 +51,7 @@ fn app() -> Result<(), Error> {
     // Get the logger filter level
     let level = if matches.is_present("debug") {
         LevelFilter::Debug
-    } else{
+    } else {
         LevelFilter::Info
     };
 
@@ -61,7 +61,8 @@ fn app() -> Result<(), Error> {
         Config::default(),
         TerminalMode::Mixed,
         ColorChoice::Auto,
-    ).unwrap();
+    )
+    .unwrap();
 
     // Set some env variables
     env::set_var("LANG", "en_US.UTF-8");
@@ -79,9 +80,11 @@ fn app() -> Result<(), Error> {
     let s = System {
         repository: &repository,
     };
+    info!("Performing system checks...");
     s.system_check()?;
 
     // Get environment
+    debug!("Get environment");
     let environment: Environment = match matches
         .value_of("environment")
         .unwrap_or(&Environment::Production.to_string())
@@ -92,6 +95,7 @@ fn app() -> Result<(), Error> {
     };
 
     // Get semver type
+    debug!("Get semver type");
     let semver_type: SemverType = match matches
         .value_of("semver_type")
         .unwrap_or(&SemverType::Patch.to_string())
@@ -103,13 +107,15 @@ fn app() -> Result<(), Error> {
 
     let deploy = matches.is_present("deploy");
 
+    debug!("Get gitlab instance");
     let gitlab = match Gitlab::new(&gitlab_host, &gitlab_token) {
         Ok(client) => client,
-        Err(_) => {
+        Err(e) => {
             return Err(anyhow!(
-                "Failed to connect to {} with token {}",
+                "Failed to connect to {} with token {} ({:?})",
                 &gitlab_host,
-                &gitlab_token
+                &gitlab_token,
+                e
             ))
         }
     };
@@ -120,10 +126,17 @@ fn app() -> Result<(), Error> {
         environment,
         semver_type,
     };
+
+    debug!("Creating new release");
     release.create()?;
+    debug!("New release created");
+
+    debug!("Pushing the release to the remote repository");
     release.push()?;
+    debug!("Release pushed to the remote repository");
 
     if deploy {
+        debug!("Deploy flag found, trying to play the \"deploy\" job");
         release.deploy()?;
     }
 
@@ -134,6 +147,7 @@ fn main() {
     process::exit(match app() {
         Ok(_) => 0,
         Err(err) => {
+            println!();
             error!("{}", err.to_string());
             1
         }
