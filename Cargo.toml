@@ -4,7 +4,7 @@ version = "0.1.0"
 edition = "2021"
 
 [dependencies]
-gitlab = "0.1403.0"
+gitlab = "*"
 duct = "0.13.5"
 clap = {version = "2.33", features = ["yaml"]}
 log = "0.4.0"
@@ -16,3 +16,6 @@ dialoguer = "0.9.0"
 lazy_static = "1.4.0"
 regex = "1"
 spinners = "2.0.0"
+chrono = "0.4.19"
+serde = { version = "1", features = ["derive"] }
+serde_json = { version = "1" }
