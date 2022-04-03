@@ -41,12 +41,8 @@ pub fn get_gitflow_branch_name(branch: &str) -> String {
     config.get_string(&config_path).unwrap()
 }
 
-/// Get the project name from the git remote url
-pub fn get_project_name() -> String {
-    let config = get_config();
-    let config_path = "remote.origin.url";
-    let remote_url = config.get_string(config_path).unwrap();
-
+/// Get a Gitlab project name from the remote url set in the config
+fn extract_project_name_from_remote_url(remote_url: &str) -> String {
     lazy_static! {
         static ref PROJECT_NAME_REGEX: Regex = Regex::new(
             r"(?x)
@@ -68,6 +64,16 @@ pub fn get_project_name() -> String {
     project_name.to_string()
 }
 
+/// Get the project name from the git remote url
+pub fn get_project_name() -> String {
+    let config = get_config();
+    let config_path = "remote.origin.url";
+    let remote_url = config.get_string(config_path).unwrap();
+
+    extract_project_name_from_remote_url(&remote_url)
+}
+
+/// Get an instance of the git repository in the current directory
 pub fn get_repository() -> Result<Repository, Error> {
     debug!("Try to load the current repository.");
     let current_dir = env::current_dir().unwrap();
@@ -80,6 +86,7 @@ pub fn get_repository() -> Result<Repository, Error> {
     Ok(repository)
 }
 
+/// Get a Remote instance from the current repository
 pub fn get_remote(repository: &Repository) -> Result<Remote, Error> {
     debug!("Try to find the remote for current repository.");
     let remote = repository.find_remote("origin")?;
@@ -88,6 +95,7 @@ pub fn get_remote(repository: &Repository) -> Result<Remote, Error> {
     Ok(remote)
 }
 
+///
 pub fn get_gitflow_branches_refs() -> Vec<String> {
     let branches = vec![MASTER_BRANCH.to_string(), DEVELOP_BRANCH.to_string()];
     let branches_refs: Vec<String> = branches.iter().map(|a| ref_by_branch(a)).collect();
@@ -96,7 +104,7 @@ pub fn get_gitflow_branches_refs() -> Vec<String> {
 
 #[cfg(test)]
 mod tests {
-    use crate::git::{ref_by_branch, ref_by_tag};
+    use crate::git::{extract_project_name_from_remote_url, ref_by_branch, ref_by_tag};
 
     #[test]
     fn format_a_branch_ref() {
@@ -106,5 +114,13 @@ mod tests {
     #[test]
     fn format_a_tag_ref() {
         assert_eq!("refs/tags/1.0.0:refs/tags/1.0.0", ref_by_tag("1.0.0"));
+    }
+
+    #[test]
+    fn extracts_project_name_from_a_ssh_remote_url() {
+        assert_eq!(
+            "aeyoll/wr",
+            extract_project_name_from_remote_url("git@github.com:aeyoll/wr.git")
+        )
     }
 }
