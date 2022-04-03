@@ -36,6 +36,7 @@ use crate::git::get_project_name;
 use crate::git::{get_gitflow_branch_name, get_repository};
 
 mod git;
+mod repository_status;
 
 const DEVELOP: &str = "develop";
 const MASTER: &str = "master";

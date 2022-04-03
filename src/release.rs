@@ -128,22 +128,20 @@ impl Release<'_> {
                     .stdout_capture()
                     .stderr_capture()
                     .read()?;
-            }
-            Some(false) => info!("Cancelling."),
-            None => info!("Aborting."),
-        }
 
-        Ok(())
+                Ok(())
+            }
+            Some(false) => Err(anyhow!("Cancelling.")),
+            None => Err(anyhow!("Aborting.")),
+        }
     }
 
     /// Create the new release
     pub fn create(&self) -> Result<(), Error> {
         match self.environment {
-            Environment::Production => self.create_production_release()?,
-            Environment::Staging => {}
+            Environment::Production => self.create_production_release(),
+            Environment::Staging => Ok(()),
         }
-
-        Ok(())
     }
 
     pub fn get_push_options(&self) -> PushOptions<'static> {

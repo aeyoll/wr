@@ -3,6 +3,7 @@ use duct::cmd;
 use git2::{ErrorCode, FetchOptions, Repository, StatusOptions};
 use std::{env, path::Path};
 
+use crate::repository_status::RepositoryStatus;
 use crate::{
     git::{self, get_gitflow_branches_refs, get_remote},
     DEVELOP_BRANCH, MASTER_BRANCH,
@@ -98,8 +99,9 @@ impl System<'_> {
         }
     }
 
-    /// Test if a repository is synced with the origin
-    fn is_repository_synced_with_origin(&self) -> Result<(), Error> {
+    /// Get the repository status and go further only if we need to push
+    /// something
+    fn get_repository_status(&self) -> Result<(), Error> {
         let mut fetch_options = FetchOptions::new();
         fetch_options.remote_callbacks(git::create_remote_callback().unwrap());
         fetch_options.download_tags(git2::AutotagOption::All);
@@ -110,15 +112,30 @@ impl System<'_> {
         let branches_refs: Vec<String> = get_gitflow_branches_refs();
         remote.download(&branches_refs, Some(&mut fetch_options))?;
 
-        // Then compare local and remote
+        // Then compare base, local and remote (https://stackoverflow.com/a/3278427)
         let local = self.repository.revparse("@{0}")?.from().unwrap().id();
         let remote = self.repository.revparse("@{u}")?.from().unwrap().id();
+        let base = self.repository.merge_base(local, remote).unwrap();
 
-        let is_up_to_date = local == remote;
+        let status;
 
-        match (is_up_to_date).then(|| 0) {
-            Some(_) => Ok(()),
-            _ => Err(anyhow!("Please update the repository first")),
+        if local == remote {
+            status = RepositoryStatus::UpToDate;
+        } else if local == base {
+            status = RepositoryStatus::NeedToPull;
+        } else if remote == base {
+            status = RepositoryStatus::NeedToPush;
+        } else {
+            status = RepositoryStatus::Diverged;
+        }
+
+        match status {
+            RepositoryStatus::UpToDate => Err(anyhow!("Repository is up-to-date, nothing to do.")),
+            RepositoryStatus::NeedToPull => Err(anyhow!("Repository need to be pulled first.")),
+            RepositoryStatus::Diverged => Err(anyhow!(
+                "Branch have diverged, please fix the conflict first."
+            )),
+            RepositoryStatus::NeedToPush => Ok(()),
         }
     }
 
@@ -167,7 +184,7 @@ impl System<'_> {
         self.is_upstream_branch_defined(DEVELOP_BRANCH.to_string())?;
 
         debug!("Checking if the repository is up-to-date with origin.");
-        self.is_repository_synced_with_origin()?;
+        self.get_repository_status()?;
 
         debug!("Checking for .gitlab-ci.yml.");
         if self.has_gitlab_ci() {
