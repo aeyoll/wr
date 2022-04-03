@@ -6,10 +6,12 @@ use git2::{Config, Cred, Remote, RemoteCallbacks, Repository};
 
 use crate::{DEVELOP_BRANCH, MASTER_BRANCH};
 
+/// Format a git branch ref
 pub fn ref_by_branch(branch: &str) -> String {
     format!("refs/heads/{}:refs/heads/{}", branch, branch)
 }
 
+/// Format a git tag ref
 pub fn ref_by_tag(tag: &str) -> String {
     format!("refs/tags/{}:refs/tags/{}", tag, tag)
 }
@@ -24,6 +26,7 @@ pub fn create_remote_callback() -> Result<RemoteCallbacks<'static>, Error> {
     Ok(callback)
 }
 
+/// Get the current git repository's configuration
 pub fn get_config() -> Config {
     let current_dir = env::current_dir().unwrap();
     let path = format!("{}/.git/config", current_dir.display());
@@ -31,12 +34,14 @@ pub fn get_config() -> Config {
     config
 }
 
+///
 pub fn get_gitflow_branch_name(branch: &str) -> String {
     let config = get_config();
     let config_path = format!("gitflow.branch.{}", &branch);
     config.get_string(&config_path).unwrap()
 }
 
+/// Get the project name from the git remote url
 pub fn get_project_name() -> String {
     let config = get_config();
     let config_path = "remote.origin.url";
@@ -87,4 +92,19 @@ pub fn get_gitflow_branches_refs() -> Vec<String> {
     let branches = vec![MASTER_BRANCH.to_string(), DEVELOP_BRANCH.to_string()];
     let branches_refs: Vec<String> = branches.iter().map(|a| ref_by_branch(a)).collect();
     branches_refs
+}
+
+#[cfg(test)]
+mod tests {
+    use crate::git::{ref_by_branch, ref_by_tag};
+
+    #[test]
+    fn format_a_branch_ref() {
+        assert_eq!("refs/heads/main:refs/heads/main", ref_by_branch("main"));
+    }
+
+    #[test]
+    fn format_a_tag_ref() {
+        assert_eq!("refs/tags/1.0.0:refs/tags/1.0.0", ref_by_tag("1.0.0"));
+    }
 }
