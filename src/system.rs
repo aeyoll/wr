@@ -84,7 +84,7 @@ impl System<'_> {
     }
 
     /// Test if an upstream branch is correctly defined
-    fn is_upsteam_branch_defined(&self, branch_name: String) -> Result<(), Error> {
+    fn is_upstream_branch_defined(&self, branch_name: String) -> Result<(), Error> {
         let spec = format!("{branch_name}@{{u}}", branch_name = branch_name);
         let revspec = self.repository.revparse(&spec);
 
@@ -162,9 +162,9 @@ impl System<'_> {
         );
         self.is_on_branch(DEVELOP_BRANCH.to_string())?;
 
-        debug!("Checking if upsteams are defined.");
-        self.is_upsteam_branch_defined(MASTER_BRANCH.to_string())?;
-        self.is_upsteam_branch_defined(DEVELOP_BRANCH.to_string())?;
+        debug!("Checking if upstreams are defined.");
+        self.is_upstream_branch_defined(MASTER_BRANCH.to_string())?;
+        self.is_upstream_branch_defined(DEVELOP_BRANCH.to_string())?;
 
         debug!("Checking if the repository is up-to-date with origin.");
         self.is_repository_synced_with_origin()?;
