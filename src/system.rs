@@ -108,7 +108,7 @@ impl System<'_> {
 
         // Fetch first
         let branches_refs: Vec<String> = get_gitflow_branches_refs();
-        remote.fetch(&branches_refs, Some(&mut fetch_options), None)?;
+        remote.download(&branches_refs, Some(&mut fetch_options))?;
 
         // Then compare local and remote
         let local = self.repository.revparse("@{0}")?.from().unwrap().id();
@@ -166,8 +166,8 @@ impl System<'_> {
         self.is_upsteam_branch_defined(MASTER_BRANCH.to_string())?;
         self.is_upsteam_branch_defined(DEVELOP_BRANCH.to_string())?;
 
-        // debug!("Checking if the repository is up-to-date with origin.");
-        // self.is_repository_synced_with_origin()?;
+        debug!("Checking if the repository is up-to-date with origin.");
+        self.is_repository_synced_with_origin()?;
 
         debug!("Checking for .gitlab-ci.yml.");
         if self.has_gitlab_ci() {
