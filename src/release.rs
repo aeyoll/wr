@@ -98,7 +98,7 @@ impl Release<'_> {
     pub fn create_production_release(&self) -> Result<(), Error> {
         let next_tag = self.get_next_tag()?;
 
-        info!("This will create release tag {}.", next_tag);
+        info!("[release] This will create release tag {}.", next_tag);
 
         match Confirm::with_theme(&ColorfulTheme::default())
             .with_prompt("Do you want to continue?")
@@ -106,7 +106,7 @@ impl Release<'_> {
             .unwrap()
         {
             Some(true) => {
-                info!("Creating release {}.", next_tag);
+                info!("[release] Creating release {}.", next_tag);
                 cmd!("git", "flow", "release", "start", next_tag.to_string())
                     .stdout_capture()
                     .stderr_capture()
