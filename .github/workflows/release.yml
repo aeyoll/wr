@@ -32,10 +32,21 @@ jobs:
     runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@v3
+      - name: Install cross-compilation tools
+        uses: taiki-e/setup-cross-toolchain-action@v1
+        with:
+          target: ${{ matrix.target }}
+        if: matrix.os == 'ubuntu-latest'
+      - name: Install dependencies (linux)
+        run: |
+          sudo apt-get update
+          sudo apt-get install libssl-dev
+        if: matrix.os == 'ubuntu-latest'
       - uses: taiki-e/upload-rust-binary-action@v1
         with:
           bin: wr
           tar: unix
           zip: none
+          target: ${{ matrix.target }}
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
