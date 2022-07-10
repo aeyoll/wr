@@ -52,7 +52,7 @@ impl System<'_> {
         Path::new(&path).exists()
     }
 
-    /// Test if the repository is initializated with git flow
+    /// Test if the repository is initialized with git flow
     fn is_git_flow_initialized(&self) -> Result<(), Error> {
         let output = cmd!("git", "flow", "config")
             .stdout_capture()

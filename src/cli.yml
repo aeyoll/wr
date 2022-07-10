@@ -19,4 +19,4 @@ args:
         takes_value: true
     - debug:
         long: debug
-        help: "Print additionals debug informations"
+        help: "Print additional debug information"

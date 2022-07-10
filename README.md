@@ -16,7 +16,7 @@ While git-flow is not trendy _at all_, it still has advantages over GitHub flow 
 - a strong usage of tags, providing an easy rollback mechanism
 - a good convention for branch names
 
-This tool is only intended to help creating and deploy new releases. Handling gitflow's features, hotfixes and bugfixes are (and will) not be covered.
+This tool is only intended to help to create and deploy new releases. Handling gitflow's features, hotfixes and bugfixes are (and will) not be covered.
 
 Installation
 ---
