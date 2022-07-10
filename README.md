@@ -46,6 +46,7 @@ USAGE:
 
 FLAGS:
     -d, --deploy     Launch a deploy job after the release
+    -f, --force      Allow to make a release even if the remote is up to date
 
 OPTIONS:
     -e, --environment <environment>    Define the deploy environment (default: "Production", available: "Production",

@@ -11,6 +11,7 @@ use crate::{
 
 pub struct System<'a> {
     pub repository: &'a Repository,
+    pub force: bool,
 }
 
 impl System<'_> {
@@ -130,7 +131,14 @@ impl System<'_> {
         }
 
         match status {
-            RepositoryStatus::UpToDate => Err(anyhow!("Repository is up-to-date, nothing to do.")),
+            RepositoryStatus::UpToDate => {
+                if self.force {
+                    info!("[Setup] Repository is up-to-date, but force flag has been passed.");
+                    Ok(())
+                } else {
+                    Err(anyhow!("Repository is up-to-date, nothing to do."))
+                }
+            }
             RepositoryStatus::NeedToPull => Err(anyhow!("Repository need to be pulled first.")),
             RepositoryStatus::Diverged => Err(anyhow!(
                 "Branch have diverged, please fix the conflict first."

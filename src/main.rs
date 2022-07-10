@@ -58,6 +58,8 @@ fn app() -> Result<(), Error> {
         LevelFilter::Info
     };
 
+    let force = matches.is_present("force");
+
     // Define the logger
     TermLogger::init(
         level,
@@ -83,6 +85,7 @@ fn app() -> Result<(), Error> {
     // This will ensure that everything is in place to do the deployment
     let s = System {
         repository: &repository,
+        force,
     };
     info!("[Setup] Performing system checks.");
     s.system_check()?;

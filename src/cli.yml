@@ -17,6 +17,10 @@ args:
         long: semver_type
         help: "Define how to increment the version number (default: \"Patch\", available: \"Patch\", \"Minor\", \"Major\")"
         takes_value: true
+    - force:
+        short: f
+        long: force
+        help: "Allow to make a release even if the remote is up to date"
     - debug:
         long: debug
         help: "Print additional debug information"

@@ -2,7 +2,6 @@ use chrono::{DateTime, Local};
 use semver::Version;
 use std::thread::sleep;
 use std::time::Duration;
-use std::{thread, time};
 
 use crate::{
     environment::Environment,
@@ -145,7 +144,7 @@ impl Release<'_> {
     }
 
     pub fn get_push_options(&self) -> PushOptions<'static> {
-        let mut push_options = git2::PushOptions::new();
+        let mut push_options = PushOptions::new();
         push_options.remote_callbacks(git::create_remote_callback().unwrap());
         push_options
     }
@@ -189,7 +188,7 @@ impl Release<'_> {
 
     ///
     pub fn get_job(&self, job_id: u64) -> Result<Job, Error> {
-        let job_endpoint = gitlab::api::projects::jobs::Job::builder()
+        let job_endpoint = projects::jobs::Job::builder()
             .project(PROJECT_NAME.to_string())
             .job(job_id)
             .build()
@@ -200,10 +199,10 @@ impl Release<'_> {
 
     ///
     pub fn deploy(&self) -> Result<(), Error> {
-        info!("[Deploy] Waiting 3s for the pipeline to be created.");
+        info!("[Deploy] Waiting 4s for the pipeline to be created.");
 
-        let three_seconds = time::Duration::from_secs(3);
-        thread::sleep(three_seconds);
+        let four_seconds = Duration::from_secs(4);
+        sleep(four_seconds);
 
         let pipeline_ref = self.environment.get_pipeline_ref()?;
 
@@ -221,7 +220,7 @@ impl Release<'_> {
         let last_pipeline: Pipeline = pipelines.into_iter().next().unwrap();
         let last_pipeline_id: u64 = last_pipeline.id;
 
-        let jobs_endpoint = gitlab::api::projects::pipelines::PipelineJobs::builder()
+        let jobs_endpoint = projects::pipelines::PipelineJobs::builder()
             .project(PROJECT_NAME.to_string())
             .pipeline(last_pipeline_id)
             .build()
@@ -250,7 +249,7 @@ impl Release<'_> {
                 }
 
                 // Trigger the deploy job
-                let play_job_endpoint = gitlab::api::projects::jobs::PlayJob::builder()
+                let play_job_endpoint = projects::jobs::PlayJob::builder()
                     .project(PROJECT_NAME.to_string())
                     .job(job.id.value())
                     .build()
@@ -270,7 +269,7 @@ impl Release<'_> {
                 if job.status == StatusState::Failed {
                     error!("[Deploy] \"{}\" job failed", job.name);
                 } else if job.status == StatusState::Success {
-                    info!("[Deploy] \"{}\" job succeded", job.name)
+                    info!("[Deploy] \"{}\" job succeeded", job.name)
                 }
 
                 break;
