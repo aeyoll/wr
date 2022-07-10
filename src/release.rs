@@ -27,7 +27,7 @@ use dialoguer::{theme::ColorfulTheme, Confirm};
 use duct::cmd;
 use serde::{Deserialize, Serialize};
 
-use crate::{DEVELOP_BRANCH, MASTER_BRANCH, PROJECT_NAME};
+use crate::{DEVELOP_BRANCH, PROJECT_NAME};
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 struct Pipeline {
@@ -188,26 +188,6 @@ impl Release<'_> {
     }
 
     ///
-    pub fn get_deploy_job_name(&self) -> Result<String, Error> {
-        let job_name = match self.environment {
-            Environment::Production => "deploy_prod".to_string(),
-            Environment::Staging => "deploy_staging".to_string(),
-        };
-
-        Ok(job_name)
-    }
-
-    ///
-    pub fn get_pipeline_ref(&self) -> Result<String, Error> {
-        let pipeline_ref = match self.environment {
-            Environment::Production => MASTER_BRANCH.to_string(),
-            Environment::Staging => DEVELOP_BRANCH.to_string(),
-        };
-
-        Ok(pipeline_ref)
-    }
-
-    ///
     pub fn get_job(&self, job_id: u64) -> Result<Job, Error> {
         let job_endpoint = gitlab::api::projects::jobs::Job::builder()
             .project(PROJECT_NAME.to_string())
@@ -225,7 +205,7 @@ impl Release<'_> {
         let three_seconds = time::Duration::from_secs(3);
         thread::sleep(three_seconds);
 
-        let pipeline_ref = self.get_pipeline_ref()?;
+        let pipeline_ref = self.environment.get_pipeline_ref()?;
 
         let pipelines_endpoint = projects::pipelines::Pipelines::builder()
             .project(PROJECT_NAME.to_string())
@@ -249,7 +229,7 @@ impl Release<'_> {
 
         let jobs: Vec<Job> = jobs_endpoint.query(&self.gitlab)?;
 
-        let deploy_job_name = self.get_deploy_job_name()?;
+        let deploy_job_name = self.environment.get_deploy_job_name()?;
 
         for job in jobs {
             // Only trigger "deploy" jobs
