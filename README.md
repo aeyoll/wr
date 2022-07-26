@@ -21,10 +21,10 @@ This tool is only intended to help to create and deploy new releases. Handling g
 Installation
 ---
 
-To install wr, run:
+To install wr, use the install-script and add `$HOME/.wr/bin` to your `$PATH`.
 
-```sh
-cargo install wr
+```shell
+curl -fsSL https://raw.githubusercontent.com/aeyoll/wr/main/install.sh | bash
 ```
 
 Configuration
