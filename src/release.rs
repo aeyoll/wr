@@ -71,8 +71,15 @@ impl Release<'_> {
                 let mut next_tag = last_tag;
 
                 match self.semver_type {
-                    SemverType::Major => next_tag.major += 1,
-                    SemverType::Minor => next_tag.minor += 1,
+                    SemverType::Major => {
+                        next_tag.major += 1;
+                        next_tag.minor = 0;
+                        next_tag.patch = 0;
+                    }
+                    SemverType::Minor => {
+                        next_tag.minor += 1;
+                        next_tag.patch = 0;
+                    }
                     SemverType::Patch => next_tag.patch += 1,
                 }
 
