@@ -1,5 +1,5 @@
 name: wr
-version: "0.1.0"
+version: "0.1.4"
 author: Jean-Philippe Bidegain <jp@bidega.in>
 about: Deploy websites using git flow and gitlab
 args:
