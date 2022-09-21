@@ -9,17 +9,17 @@ homepage = "https://github.com/aeyoll/wr"
 [dependencies]
 anyhow = "1.0.44"
 chrono = "0.4.19"
-clap = {version = "2.33", features = ["yaml"]}
-dialoguer = "0.9.0"
+clap = {version = "3.2.22", features = ["derive"]}
+dialoguer = "0.10.2"
 duct = "0.13.5"
-git2 = "0.13"
+git2 = "0.15.0"
 gitlab = "*"
-indicatif = "0.16.2"
+indicatif = "0.17.1"
 lazy_static = "1.4.0"
 log = "0.4.0"
 regex = "1"
 semver = "1.0.4"
 serde = { version = "1", features = ["derive"] }
 serde_json = { version = "1" }
-simplelog = "^0.10.0"
+simplelog = "0.12.0"
 openssl = { version = "0.10", features = ["vendored"] }

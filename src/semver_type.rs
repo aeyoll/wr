@@ -1,7 +1,7 @@
 use std::fmt;
 use std::str::FromStr;
 
-#[derive(Debug, Copy, Clone)]
+#[derive(Debug, Copy, Clone, clap::ValueEnum)]
 pub enum SemverType {
     Major,
     Minor,

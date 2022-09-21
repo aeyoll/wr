@@ -1,6 +1,4 @@
-#[macro_use]
-extern crate clap;
-use clap::App;
+use clap::Parser;
 
 use anyhow::{anyhow, Error};
 
@@ -47,18 +45,40 @@ lazy_static! {
     static ref PROJECT_NAME: String = get_project_name();
 }
 
+#[derive(Parser)]
+#[clap(version, about, long_about = None)]
+struct Cli {
+    #[clap(long, value_parser, default_value_t = false)]
+    // Launch a deploy job after the release"
+    deploy: bool,
+
+    #[clap(short, long, value_enum, default_value_t = Environment::Production)]
+    // Define the deploy environment (default: \"Production\", available: \"Production\", \"Staging\")"
+    environment: Environment,
+
+    #[clap(short, long, value_enum, default_value_t = SemverType::Patch)]
+    // Define how to increment the version number (default: \"Patch\", available: \"Patch\", \"Minor\", \"Major\")"
+    semver_type: SemverType,
+
+    #[clap(short, long, value_parser, default_value_t = false)]
+    // Allow to make a release even if the remote is up to date"
+    force: bool,
+
+    #[clap(long, value_parser, default_value_t = false)]
+    debug: bool,
+}
+
 fn app() -> Result<(), Error> {
-    let yaml = load_yaml!("cli.yml");
-    let matches = App::from_yaml(yaml).get_matches();
+    let matches = Cli::parse();
 
     // Get the logger filter level
-    let level = if matches.is_present("debug") {
+    let level = if matches.debug {
         LevelFilter::Debug
     } else {
         LevelFilter::Info
     };
 
-    let force = matches.is_present("force");
+    let force = matches.force;
 
     // Define the logger
     TermLogger::init(
@@ -92,14 +112,7 @@ fn app() -> Result<(), Error> {
 
     // Get environment
     debug!("Getting the environment name from the arguments.");
-    let environment: Environment = match matches
-        .value_of("environment")
-        .unwrap_or(&Environment::Production.to_string())
-        .parse()
-    {
-        Ok(environment) => environment,
-        Err(e) => return Err(anyhow!("{}", e.to_string())),
-    };
+    let environment: Environment = matches.environment;
     info!(
         "[Setup] {} environment was found from the arguments.",
         environment
@@ -107,14 +120,7 @@ fn app() -> Result<(), Error> {
 
     // Get semver type
     debug!("Getting the semver type from the arguments.");
-    let semver_type: SemverType = match matches
-        .value_of("semver_type")
-        .unwrap_or(&SemverType::Patch.to_string())
-        .parse()
-    {
-        Ok(semver_type) => semver_type,
-        Err(e) => return Err(anyhow!("{}", e.to_string())),
-    };
+    let semver_type: SemverType = matches.semver_type;
     info!(
         "[Setup] {} semver type was found from the arguments.",
         semver_type
@@ -154,8 +160,7 @@ fn app() -> Result<(), Error> {
         environment
     );
 
-    let deploy = matches.is_present("deploy");
-    if deploy {
+    if matches.deploy {
         if s.has_gitlab_ci() {
             debug!("\"deploy\" flag was found, trying to play the \"deploy\" job.");
             release.deploy()?;
