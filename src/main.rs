@@ -48,24 +48,25 @@ lazy_static! {
 #[derive(Parser)]
 #[clap(version, about, long_about = None)]
 struct Cli {
-    #[clap(long, value_parser, default_value_t = false)]
-    // Launch a deploy job after the release"
+    /// Launch a deploy job after the release
+    #[clap(long, action)]
     deploy: bool,
 
-    #[clap(short, long, value_enum, default_value_t = Environment::Production)]
-    // Define the deploy environment (default: \"Production\", available: \"Production\", \"Staging\")"
-    environment: Environment,
+    /// Print additional debug information
+    #[clap(short, long, action)]
+    debug: bool,
 
-    #[clap(short, long, value_enum, default_value_t = SemverType::Patch)]
-    // Define how to increment the version number (default: \"Patch\", available: \"Patch\", \"Minor\", \"Major\")"
-    semver_type: SemverType,
-
-    #[clap(short, long, value_parser, default_value_t = false)]
-    // Allow to make a release even if the remote is up to date"
+    /// Allow to make a release even if the remote is up to date
+    #[clap(short, long, action)]
     force: bool,
 
-    #[clap(long, value_parser, default_value_t = false)]
-    debug: bool,
+    /// Define the deploy environment
+    #[clap(short, long, value_enum, default_value_t = Environment::Production)]
+    environment: Environment,
+
+    /// Define how to increment the version number
+    #[clap(short, long, value_enum, default_value_t = SemverType::Patch)]
+    semver_type: SemverType,
 }
 
 fn app() -> Result<(), Error> {
