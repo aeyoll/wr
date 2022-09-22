@@ -62,13 +62,13 @@ Examples:
 Create a staging release and deploy it:
 
 ```sh
-wr --environment=Staging --deploy
+wr --environment=staging --deploy
 ```
 
 Create a production release, with logger level set at "debug", incrementing to the next minor version:
 
 ```sh
-wr --semver_type=Minor --debug
-wr --environment=Production --semver_type=Minor --debug
+wr --semver_type=minor --debug
+wr --environment=production --semver_type=minor --debug
 # Those two lines are equivalent
 ```
