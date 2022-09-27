@@ -13,10 +13,7 @@ use git2::{PushOptions, Repository};
 use gitlab::{
     api::{
         common::SortOrder,
-        projects::{
-            self,
-            pipelines::{PipelineOrderBy, PipelineStatus},
-        },
+        projects::{self, pipelines::PipelineOrderBy},
         Query,
     },
     Gitlab, Job, StatusState,
@@ -218,13 +215,16 @@ impl Release<'_> {
             .ref_(pipeline_ref)
             .order_by(PipelineOrderBy::Id)
             .sort(SortOrder::Descending)
-            .status(PipelineStatus::Running)
             .build()
             .unwrap();
 
         let pipelines: Vec<Pipeline> = pipelines_endpoint.query(&self.gitlab)?;
+        let filtered_pipelines = pipelines
+            .into_iter()
+            .filter(|pipeline| pipeline.status == "skipped" || pipeline.status == "running")
+            .collect::<Vec<Pipeline>>();
 
-        let last_pipeline: Pipeline = pipelines.into_iter().next().unwrap();
+        let last_pipeline: Pipeline = filtered_pipelines.into_iter().next().unwrap();
         let last_pipeline_id: u64 = last_pipeline.id;
 
         let jobs_endpoint = projects::pipelines::PipelineJobs::builder()
