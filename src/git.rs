@@ -57,7 +57,7 @@ fn extract_project_name_from_remote_url(remote_url: &str) -> String {
     }
 
     let project_name = PROJECT_NAME_REGEX
-        .captures(&remote_url)
+        .captures(remote_url)
         .and_then(|cap| cap.name("project_name").map(|login| login.as_str()))
         .unwrap();
 
