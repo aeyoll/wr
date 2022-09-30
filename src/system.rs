@@ -39,7 +39,7 @@ impl System<'_> {
     fn check_git_flow_version(&self) -> Result<(), Error> {
         let output = cmd!("git", "flow", "version").read()?;
 
-        match output.contains("AVH").then(|| 0) {
+        match output.contains("AVH").then_some(0) {
             Some(_) => Ok(()),
             _ => Err(anyhow!("You have the wrong version of git flow installed. If you are on MacOS, make sure to install 'git-flow-avh'"))
         }
@@ -79,7 +79,7 @@ impl System<'_> {
         };
         let head = head.as_ref().and_then(|h| h.shorthand());
 
-        match (head.unwrap() == branch_name).then(|| 0) {
+        match (head.unwrap() == branch_name).then_some(0) {
             Some(_) => Ok(()),
             _ => Err(anyhow!("Please checkout the {} branch", branch_name)),
         }
@@ -159,7 +159,7 @@ impl System<'_> {
 
         let statuses = self.repository.statuses(Some(&mut opts))?;
 
-        match (statuses.is_empty()).then(|| 0) {
+        match (statuses.is_empty()).then_some(0) {
             Some(_) => Ok(()),
             _ => Err(anyhow!(
                 "Repository is dirty. Please commit or stash your last changes before running wr."
