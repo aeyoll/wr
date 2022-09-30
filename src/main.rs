@@ -96,8 +96,8 @@ fn app() -> Result<(), Error> {
 
     // Init
     info!("Welcome to wr.");
-    let gitlab_host = env::var("WR_GITLAB_HOST").unwrap_or_else(|_| "gitlab.com".to_string());
-    let gitlab_token = env::var("WR_GITLAB_TOKEN").unwrap_or_else(|_| "".to_string());
+    let gitlab_host = env::var("GITLAB_HOST").unwrap_or_else(|_| "gitlab.com".to_string());
+    let gitlab_token = env::var("GITLAB_TOKEN").unwrap_or_else(|_| "".to_string());
 
     // Get a git2 "Repository" struct
     let repository = get_repository()?;

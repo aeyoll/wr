@@ -33,8 +33,8 @@ Configuration
 Setup some environment variables:
 
 ```sh
-export WR_GITLAB_HOST=gitlab.com # default to gitlab.com, but it can be a private instance
-export WR_GITLAB_TOKEN=glpat-012345678012345678 # GitLab access token with "api" rights
+export GITLAB_HOST=gitlab.com # default to gitlab.com, but it can be a private instance
+export GITLAB_TOKEN=glpat-012345678012345678 # GitLab access token with "api" rights
 ```
 
 Usage
