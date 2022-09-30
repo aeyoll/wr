@@ -221,8 +221,7 @@ impl Release<'_> {
         let pipelines: Vec<Pipeline> = pipelines_endpoint.query(&self.gitlab)?;
         let filtered_pipelines = pipelines
             .into_iter()
-            .filter(|pipeline| pipeline.status == "skipped" || pipeline.status == "running")
-            .collect::<Vec<Pipeline>>();
+            .filter(|pipeline| pipeline.status == "skipped" || pipeline.status == "running");
 
         let last_pipeline: Pipeline = filtered_pipelines.into_iter().next().unwrap();
         let last_pipeline_id: u64 = last_pipeline.id;
