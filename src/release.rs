@@ -50,7 +50,7 @@ impl Release<'_> {
 
         let latest_tag = tags
             .iter()
-            .map(|x| Version::parse(x.unwrap()).unwrap())
+            .filter_map(|x| Version::parse(x.unwrap()).ok())
             .max_by(|x, y| x.cmp(y));
 
         match latest_tag {
