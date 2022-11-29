@@ -183,7 +183,7 @@ impl System<'_> {
 
         debug!(
             "Checking if the repository is on the {} branch.",
-            DEVELOP_BRANCH.to_string()
+            DEVELOP_BRANCH.as_str()
         );
         self.is_on_branch(DEVELOP_BRANCH.to_string())?;
 
