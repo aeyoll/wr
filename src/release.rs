@@ -236,49 +236,46 @@ impl Release<'_> {
 
         let deploy_job_name = self.environment.get_deploy_job_name()?;
 
-        for job in jobs {
-            // Only trigger "deploy" jobs
-            let is_deploy_job = job.name.contains(&deploy_job_name)
+        let deploy_job = jobs.into_iter().find(|job| {
+            job.name.contains(&deploy_job_name)
                 && job.status != StatusState::Failed
-                && job.status != StatusState::Success;
+                && job.status != StatusState::Success
+        });
 
-            if is_deploy_job {
-                // While the job has the "created" state, it means other jobs
-                // are pending before.
-                let mut job_status = job.status;
-                info!("[Deploy] Waiting for previous jobs to be over.");
+        if let Some(job) = deploy_job {
+            // While the job has the "created" state, it means other jobs
+            // are pending before.
+            let mut job_status = job.status;
+            info!("[Deploy] Waiting for previous jobs to be over.");
 
-                while job_status == StatusState::Created {
-                    sleep(Duration::from_secs(1));
-                    let job: Job = self.get_job(job.id.value())?;
-                    job_status = job.status;
-                }
+            while job_status == StatusState::Created {
+                sleep(Duration::from_secs(1));
+                let job: Job = self.get_job(job.id.value())?;
+                job_status = job.status;
+            }
 
-                // Trigger the deploy job
-                let play_job_endpoint = projects::jobs::PlayJob::builder()
-                    .project(PROJECT_NAME.to_string())
-                    .job(job.id.value())
-                    .build()
-                    .unwrap();
+            // Trigger the deploy job
+            let play_job_endpoint = projects::jobs::PlayJob::builder()
+                .project(PROJECT_NAME.to_string())
+                .job(job.id.value())
+                .build()
+                .unwrap();
 
-                gitlab::api::ignore(play_job_endpoint).query(&self.gitlab)?;
+            gitlab::api::ignore(play_job_endpoint).query(&self.gitlab)?;
 
-                info!("[Deploy] Playing \"{}\" job.", job.name);
+            info!("[Deploy] Playing \"{}\" job.", job.name);
 
-                let mut job: Job = self.get_job(job.id.value())?;
+            let mut job: Job = self.get_job(job.id.value())?;
 
-                while job.status != StatusState::Failed && job.status != StatusState::Success {
-                    sleep(Duration::from_secs(1));
-                    job = self.get_job(job.id.value())?;
-                }
+            while job.status != StatusState::Failed && job.status != StatusState::Success {
+                sleep(Duration::from_secs(1));
+                job = self.get_job(job.id.value())?;
+            }
 
-                if job.status == StatusState::Failed {
-                    error!("[Deploy] \"{}\" job failed", job.name);
-                } else if job.status == StatusState::Success {
-                    info!("[Deploy] \"{}\" job succeeded", job.name)
-                }
-
-                break;
+            if job.status == StatusState::Failed {
+                error!("[Deploy] \"{}\" job failed", job.name);
+            } else if job.status == StatusState::Success {
+                info!("[Deploy] \"{}\" job succeeded", job.name)
             }
         }
 
