@@ -12,7 +12,7 @@ chrono = "0.4.19"
 clap = {version = "3.2.22", features = ["derive"]}
 dialoguer = "0.10.2"
 duct = "0.13.5"
-git2 = "0.15.0"
+git2 = "0.16.1"
 gitlab = "*"
 indicatif = "0.17.1"
 lazy_static = "1.4.0"
