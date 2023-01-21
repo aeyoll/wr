@@ -1,7 +1,9 @@
 # wr
 
+[![GitHub Actions workflow status](https://github.com/aeyoll/jimaku/workflows/ci/badge.svg)](https://github.com/aeyoll/jimaku/actions)
 [![LICENSE](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 [![Minimum rustc version](https://img.shields.io/badge/rustc-1.62.0+-lightgray.svg)](#rust-version-requirements)
+[![Conventional commits](https://img.shields.io/badge/Conventional%20Commits-1.0.0-yellow.svg)](https://conventionalcommits.org)
 
 A Rust tool to deploy websites with ease, using git-flow and Gitlab CI/CD.
 
