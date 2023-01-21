@@ -1,10 +1,24 @@
-pre_bump_hooks = []
-post_bump_hooks = []
-
-[commit_types]
+branch_whitelist = [ "main" ]
+ignore_merge_commits = true
+pre_bump_hooks = [
+    "cargo test",
+    "cargo clippy",
+    "cargo fmt --all",
+    "cargo set-version {{version}}",
+    "cargo build --release",
+]
+post_bump_hooks = [
+    "git push",
+    "git push origin {{version}}",
+    "cargo package",
+    "cargo publish"
+]
+tag_prefix = "v"
 
 [changelog]
 path = "CHANGELOG.md"
-authors = []
-
-[bump_profiles]
+repository = "wr"
+owner = "aeyoll"
+authors = [
+    { signature = "Jean-Philippe Bidegain", username = "aeyoll" },
+]
