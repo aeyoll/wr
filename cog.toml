@@ -17,6 +17,7 @@ tag_prefix = "v"
 
 [changelog]
 path = "CHANGELOG.md"
+remote = "github.com"
 repository = "wr"
 owner = "aeyoll"
 authors = [
