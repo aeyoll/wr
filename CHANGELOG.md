@@ -2,6 +2,21 @@
 All notable changes to this project will be documented in this file. See [conventional commits](https://www.conventionalcommits.org/) for commit guidelines.
 
 - - -
+## v0.1.11 - 2023-08-25
+#### Build system
+- **(deps)** bump dependencies - (a71b841) - *aeyoll*
+- **(deps)** bump openssl from 0.10.48 to 0.10.55 (#18) - (0182d22) - dependabot[bot]
+- **(deps)** bump h2 from 0.3.15 to 0.3.17 (#17) - (e0938f6) - dependabot[bot]
+- **(deps)** bump openssl from 0.10.45 to 0.10.48 (#16) - (5855397) - dependabot[bot]
+- **(deps)** bump openssl-src from 111.24.0+1.1.1s to 111.25.0+1.1.1t (#15) - (ccc52ff) - dependabot[bot]
+- **(deps)** bump dependencies - (218a99e) - *aeyoll*
+#### Miscellaneous Chores
+- **(cog)** remove package publishing related post bump hooks - (f657ed7) - *aeyoll*
+- **(cog)** add version prefix to post bump hook - (fedc951) - *aeyoll*
+- fix a small typo - (e50f3e7) - aeyoll
+
+- - -
+
 ## v0.1.10 - 2023-01-22
 #### Build system
 - **(deps)** bump every dependency - (2e16ac4) - *aeyoll*
