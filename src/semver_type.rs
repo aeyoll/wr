@@ -1,17 +1,12 @@
 use std::fmt;
 use std::str::FromStr;
 
-#[derive(Debug, Copy, Clone, clap::ValueEnum)]
+#[derive(Debug, Copy, Clone, clap::ValueEnum, Default)]
 pub enum SemverType {
     Major,
     Minor,
+    #[default]
     Patch,
-}
-
-impl Default for SemverType {
-    fn default() -> SemverType {
-        SemverType::Patch
-    }
 }
 
 impl FromStr for SemverType {

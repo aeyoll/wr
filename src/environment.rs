@@ -3,8 +3,9 @@ use anyhow::Error;
 use std::fmt;
 use std::str::FromStr;
 
-#[derive(Debug, Copy, Clone, PartialEq, Eq, clap::ValueEnum)]
+#[derive(Debug, Copy, Clone, PartialEq, Eq, clap::ValueEnum, Default)]
 pub enum Environment {
+    #[default]
     Production,
     Staging,
 }
@@ -28,12 +29,6 @@ impl Environment {
         };
 
         Ok(pipeline_ref)
-    }
-}
-
-impl Default for Environment {
-    fn default() -> Environment {
-        Environment::Production
     }
 }
 
