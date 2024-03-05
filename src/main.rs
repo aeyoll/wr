@@ -21,6 +21,10 @@ use gitlab::Gitlab;
 mod system;
 use system::System;
 
+mod job;
+
+mod pipeline;
+
 mod environment;
 use environment::Environment;
 

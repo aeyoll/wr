@@ -1,4 +1,3 @@
-use chrono::{DateTime, Local};
 use semver::Version;
 use std::thread::sleep;
 use std::time::Duration;
@@ -6,6 +5,9 @@ use std::time::Duration;
 use crate::{
     environment::Environment,
     git::{self, get_gitflow_branches_refs, get_remote},
+    job::Job,
+    pipeline::Pipeline,
+    pipeline::StatusState,
     semver_type::SemverType,
 };
 use anyhow::{anyhow, Error};
@@ -16,25 +18,13 @@ use gitlab::{
         projects::{self, pipelines::PipelineOrderBy},
         Query,
     },
-    Gitlab, Job, StatusState,
+    Gitlab,
 };
 
 use dialoguer::{theme::ColorfulTheme, Confirm};
 use duct::cmd;
-use serde::{Deserialize, Serialize};
 
 use crate::{DEVELOP_BRANCH, PROJECT_NAME};
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
-struct Pipeline {
-    id: u64,
-    status: String,
-    r#ref: String,
-    sha: String,
-    web_url: String,
-    created_at: DateTime<Local>,
-    updated_at: DateTime<Local>,
-}
 
 pub struct Release<'a> {
     pub gitlab: Gitlab,
@@ -266,14 +256,14 @@ impl Release<'_> {
 
                 while job_status == StatusState::Created {
                     sleep(Duration::from_secs(1));
-                    let job: Job = self.get_job(job.id.value())?;
+                    let job: Job = self.get_job(job.id)?;
                     job_status = job.status;
                 }
 
                 // Trigger the deploy job
                 let play_job_endpoint = projects::jobs::PlayJob::builder()
                     .project(PROJECT_NAME.to_string())
-                    .job(job.id.value())
+                    .job(job.id)
                     .build()
                     .unwrap();
 
@@ -281,11 +271,11 @@ impl Release<'_> {
 
                 info!("[Deploy] Playing \"{}\" job.", job.name);
 
-                let mut job: Job = self.get_job(job.id.value())?;
+                let mut job: Job = self.get_job(job.id)?;
 
                 while job.status != StatusState::Failed && job.status != StatusState::Success {
                     sleep(Duration::from_secs(1));
-                    job = self.get_job(job.id.value())?;
+                    job = self.get_job(job.id)?;
                 }
 
                 if job.status == StatusState::Failed {
