@@ -2,6 +2,12 @@
 All notable changes to this project will be documented in this file. See [conventional commits](https://www.conventionalcommits.org/) for commit guidelines.
 
 - - -
+## v0.1.13 - 2024-03-05
+#### Build system
+- **(deps)** bump dependencies - (cea7d49) - *aeyoll*
+
+- - -
+
 ## v0.1.12 - 2023-11-29
 #### Build system
 - **(deps)** bump openssl from 0.10.56 to 0.10.60 (#19) - (92a33e0) - dependabot[bot]
