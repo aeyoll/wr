@@ -2,6 +2,15 @@
 All notable changes to this project will be documented in this file. See [conventional commits](https://www.conventionalcommits.org/) for commit guidelines.
 
 - - -
+## v0.1.14 - 2024-05-21
+#### Build system
+- **(deps)** bump dependencies - (7609510) - *aeyoll*
+- **(deps)** bump h2 from 0.3.24 to 0.3.26 (#22) - (e00b15c) - dependabot[bot]
+#### Refactoring
+- fix deprecations in gitlab api - (6d26c49) - aeyoll
+
+- - -
+
 ## v0.1.13 - 2024-03-05
 #### Build system
 - **(deps)** bump dependencies - (cea7d49) - *aeyoll*
