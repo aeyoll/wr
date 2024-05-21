@@ -85,10 +85,15 @@ fn app() -> Result<(), Error> {
 
     let force = matches.force;
 
+    let mut log_stdout_config_builder = ConfigBuilder::default();
+    log_stdout_config_builder
+        .set_time_offset_to_local()
+        .unwrap();
+
     // Define the logger
     TermLogger::init(
         level,
-        Config::default(),
+        log_stdout_config_builder.build(),
         TerminalMode::Mixed,
         ColorChoice::Auto,
     )
