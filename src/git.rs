@@ -97,7 +97,7 @@ pub fn get_remote(repository: &Repository) -> Result<Remote, Error> {
 
 ///
 pub fn get_gitflow_branches_refs() -> Vec<String> {
-    let branches = vec![MASTER_BRANCH.to_string(), DEVELOP_BRANCH.to_string()];
+    let branches = [MASTER_BRANCH.to_string(), DEVELOP_BRANCH.to_string()];
     let branches_refs: Vec<String> = branches.iter().map(|a| ref_by_branch(a)).collect();
     branches_refs
 }
