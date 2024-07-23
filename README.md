@@ -44,18 +44,20 @@ Usage
 
 ```
 USAGE:
-    wr [OPTIONS]
+    wr [FLAGS] [OPTIONS]
+
+FLAGS:
+        --debug      Print additional debug information
+    -d, --deploy     Launch a deploy job after the release
+    -f, --force      Allow to make a release even if the remote is up to date
+    -h, --help       Prints help information
+    -V, --version    Prints version information
 
 OPTIONS:
-    -d, --debug                        Print additional debug information
-        --deploy                       Launch a deploy job after the release
-    -e, --environment <ENVIRONMENT>    Define the deploy environment [default: production] [possible
-                                       values: production, staging]
-    -f, --force                        Allow to make a release even if the remote is up to date
-    -h, --help                         Print help information
-    -s, --semver-type <SEMVER_TYPE>    Define how to increment the version number [default: patch]
-                                       [possible values: major, minor, patch]
-    -V, --version                      Print version information
+    -e, --environment <environment>    Define the deploy environment (default: "Production", available: "Production",
+                                       "Staging")
+    -s, --semver_type <semver_type>    Define how to increment the version number (default: "Patch", available: "Patch",
+                                       "Minor", "Major")
 ```
 
 Examples:
