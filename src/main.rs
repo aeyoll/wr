@@ -1,4 +1,4 @@
-use clap::Parser;
+use clap::{Parser, Subcommand};
 
 use anyhow::{anyhow, Error};
 
@@ -52,7 +52,7 @@ lazy_static! {
 #[derive(Parser)]
 #[clap(version, about, long_about = None)]
 struct Cli {
-    /// Launch a deploy job after the release
+    /// Launch a deployment job after the release
     #[clap(long, action)]
     deploy: bool,
 
@@ -60,17 +60,26 @@ struct Cli {
     #[clap(short, long, action)]
     debug: bool,
 
-    /// Allow to make a release even if the remote is up to date
+    /// Allow to make a release even if the remote is up-to-date
     #[clap(short, long, action)]
     force: bool,
 
-    /// Define the deploy environment
-    #[clap(short, long, value_enum, default_value_t = Environment::Production)]
-    environment: Environment,
+    #[command(subcommand)]
+    commands: Commands,
+}
 
-    /// Define how to increment the version number
-    #[clap(short, long, value_enum, default_value_t = SemverType::Patch)]
-    semver_type: SemverType,
+#[derive(Subcommand)]
+enum Commands {
+    #[command(about = "Create a new release")]
+    Release {
+        /// Define the deploy environment
+        #[clap(short, long, value_enum, default_value_t = Environment::Production)]
+        environment: Environment,
+
+        /// Define how to increment the version number
+        #[clap(short, long, value_enum, default_value_t = SemverType::Patch)]
+        semver_type: SemverType,
+    },
 }
 
 fn app() -> Result<(), Error> {
@@ -120,62 +129,69 @@ fn app() -> Result<(), Error> {
     info!("[Setup] Performing system checks.");
     s.system_check()?;
 
-    // Get environment
-    debug!("Getting the environment name from the arguments.");
-    let environment: Environment = matches.environment;
-    info!(
-        "[Setup] {} environment was found from the arguments.",
-        environment
-    );
+    match matches.commands {
+        Commands::Release {
+            environment,
+            semver_type,
+        } => {
+            // Get environment
+            debug!("Getting the environment name from the arguments.");
+            let environment: Environment = environment;
+            info!(
+                "[Setup] {} environment was found from the arguments.",
+                environment
+            );
 
-    // Get semver type
-    debug!("Getting the semver type from the arguments.");
-    let semver_type: SemverType = matches.semver_type;
-    info!(
-        "[Setup] {} semver type was found from the arguments.",
-        semver_type
-    );
+            // Get semver type
+            debug!("Getting the semver type from the arguments.");
+            let semver_type: SemverType = semver_type;
+            info!(
+                "[Setup] {} semver type was found from the arguments.",
+                semver_type
+            );
 
-    info!("[Setup] Login into Gitlab instance \"{}\".", gitlab_host);
-    let gitlab = match Gitlab::new(&gitlab_host, &gitlab_token) {
-        Ok(client) => client,
-        Err(e) => {
-            return Err(anyhow!(
-                "Failed to connect to Gitlab instance \"{}\", with token \"{}\" ({:?})",
-                &gitlab_host,
-                &gitlab_token,
-                e
-            ))
-        }
-    };
+            info!("[Setup] Login into Gitlab instance \"{}\".", gitlab_host);
+            let gitlab = match Gitlab::new(&gitlab_host, &gitlab_token) {
+                Ok(client) => client,
+                Err(e) => {
+                    return Err(anyhow!(
+                        "Failed to connect to Gitlab instance \"{}\", with token \"{}\" ({:?})",
+                        &gitlab_host,
+                        &gitlab_token,
+                        e
+                    ))
+                }
+            };
 
-    let release = Release {
-        gitlab,
-        repository: &repository,
-        environment,
-        semver_type,
-    };
+            let release = Release {
+                gitlab,
+                repository: &repository,
+                environment,
+                semver_type,
+            };
 
-    debug!("[Release] Creating a new {} release.", environment);
-    release.create()?;
-    info!("[Release] A new {} release has been created.", environment);
+            debug!("[Release] Creating a new {} release.", environment);
+            release.create()?;
+            info!("[Release] A new {} release has been created.", environment);
 
-    debug!(
-        "[Release] Pushing the {} release to the remote repository.",
-        environment
-    );
-    release.push()?;
-    info!(
-        "[Release] {} release has been pushed to the remote repository.",
-        environment
-    );
+            debug!(
+                "[Release] Pushing the {} release to the remote repository.",
+                environment
+            );
+            release.push()?;
+            info!(
+                "[Release] {} release has been pushed to the remote repository.",
+                environment
+            );
 
-    if matches.deploy {
-        if s.has_gitlab_ci() {
-            debug!("\"deploy\" flag was found, trying to play the \"deploy\" job.");
-            release.deploy()?;
-        } else {
-            warn!("\"deploy\" flag was found, but the repository has no \".gitlab-ci.yml\" file, impossible to deploy.")
+            if matches.deploy {
+                if s.has_gitlab_ci() {
+                    debug!("\"deploy\" flag was found, trying to play the \"deploy\" job.");
+                    release.deploy()?;
+                } else {
+                    warn!("\"deploy\" flag was found, but the repository has no \".gitlab-ci.yml\" file, impossible to deploy.")
+                }
+            }
         }
     }
 
