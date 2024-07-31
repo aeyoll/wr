@@ -9,10 +9,10 @@ homepage = "https://github.com/aeyoll/wr"
 [dependencies]
 anyhow = "1.0.44"
 chrono = "0.4.19"
-clap = {version = "3.2.22", features = ["derive"]}
-dialoguer = "0.10.2"
+clap = {version = "4.5.11", features = ["derive"]}
+dialoguer = "0.11.0"
 duct = "0.13.5"
-git2 = "0.16.1"
+git2 = "0.19.0"
 gitlab = "*"
 indicatif = "0.17.1"
 lazy_static = "1.4.0"
