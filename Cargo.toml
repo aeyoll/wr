@@ -7,19 +7,19 @@ license = "MIT"
 homepage = "https://github.com/aeyoll/wr"
 
 [dependencies]
-anyhow = "1.0.44"
-chrono = "0.4.19"
-clap = {version = "3.2.22", features = ["derive"]}
-dialoguer = "0.10.2"
-duct = "0.13.5"
+anyhow = "1.0.93"
+chrono = "0.4.38"
+clap = {version = "3.2.25", features = ["derive"]}
+dialoguer = "0.10.4"
+duct = "0.13.7"
 git2 = "0.16.1"
 gitlab = "*"
-indicatif = "0.17.1"
-lazy_static = "1.4.0"
-log = "0.4.0"
+indicatif = "0.17.9"
+lazy_static = "1.5.0"
+log = "0.4.22"
 regex = "1"
-semver = "1.0.4"
+semver = "1.0.23"
 serde = { version = "1", features = ["derive"] }
 serde_json = { version = "1" }
-simplelog = "0.12.0"
+simplelog = "0.12.2"
 openssl = { version = "0.10", features = ["vendored"] }
