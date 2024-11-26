@@ -2,6 +2,12 @@
 All notable changes to this project will be documented in this file. See [conventional commits](https://www.conventionalcommits.org/) for commit guidelines.
 
 - - -
+## v0.1.17 - 2024-11-26
+#### Build system
+- **(deps)** update git2 - (328b5c2) - *aeyoll*
+
+- - -
+
 ## v0.1.16 - 2024-11-26
 #### Build system
 - **(deps)** upgrade dependencies - (70e85e3) - *aeyoll*
