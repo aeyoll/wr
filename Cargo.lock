@@ -329,13 +329,14 @@ dependencies = [
 
 [[package]]
 name = "dialoguer"
-version = "0.10.4"
+version = "0.11.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "59c6f2989294b9a498d3ad5491a79c6deb604617378e1cdc4bfc1c1361fe2f87"
+checksum = "658bce805d770f407bc62102fca7c2c64ceef2fbcb2b8bd19d2765ce093980de"
 dependencies = [
  "console",
  "shell-words",
  "tempfile",
+ "thiserror 1.0.69",
  "zeroize",
 ]
 
@@ -491,11 +492,11 @@ checksum = "07e28edb80900c19c28f1072f2e8aeca7fa06b23cd4169cefe1af5aa3260783f"
 
 [[package]]
 name = "git2"
-version = "0.16.1"
+version = "0.19.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "ccf7f68c2995f392c49fffb4f95ae2c873297830eb25c6bc4c114ce8f4562acc"
+checksum = "b903b73e45dc0c6c596f2d37eccece7c1c8bb6e4407b001096387c63d0d93724"
 dependencies = [
- "bitflags 1.3.2",
+ "bitflags 2.6.0",
  "libc",
  "libgit2-sys",
  "log",
@@ -955,9 +956,9 @@ checksum = "433bfe06b8c75da9b2e3fbea6e5329ff87748f0b144ef75306e674c3f6f7c13f"
 
 [[package]]
 name = "libgit2-sys"
-version = "0.14.2+1.5.1"
+version = "0.17.0+1.8.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "7f3d95f6b51075fe9810a7ae22c7095f12b98005ab364d8544797a825ce946a4"
+checksum = "10472326a8a6477c3c20a64547b0059e4b0d086869eee31e6d7da728a8eb7224"
 dependencies = [
  "cc",
  "libc",
@@ -969,9 +970,9 @@ dependencies = [
 
 [[package]]
 name = "libssh2-sys"
-version = "0.2.23"
+version = "0.3.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "b094a36eb4b8b8c8a7b4b8ae43b2944502be3e59cd87687595cf6b0a71b3f4ca"
+checksum = "2dc8a030b787e2119a731f1951d6a773e2280c660f8ec4b0f5e1505a386e71ee"
 dependencies = [
  "cc",
  "libc",
