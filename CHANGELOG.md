@@ -2,6 +2,15 @@
 All notable changes to this project will be documented in this file. See [conventional commits](https://www.conventionalcommits.org/) for commit guidelines.
 
 - - -
+## v0.1.16 - 2024-11-26
+#### Build system
+- **(deps)** upgrade dependencies - (70e85e3) - *aeyoll*
+- **(deps)** bump openssl from 0.10.64 to 0.10.66 (#24) - (754233f) - dependabot[bot]
+#### Documentation
+- update usage in the README - (da78602) - aeyoll
+
+- - -
+
 ## v0.1.15 - 2024-05-21
 #### Bug Fixes
 - use local time offset in the logger configuration - (53f1162) - aeyoll
