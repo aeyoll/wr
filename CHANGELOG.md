@@ -2,6 +2,16 @@
 All notable changes to this project will be documented in this file. See [conventional commits](https://www.conventionalcommits.org/) for commit guidelines.
 
 - - -
+## v0.1.18 - 2025-03-09
+#### Build system
+- **(deps)** bump dependencies - (6675953) - *aeyoll*
+- **(deps)** bump openssl from 0.10.68 to 0.10.70 (#28) - (fc1a6e7) - dependabot[bot]
+- **(deps)** bump dependencies - (1c9c471) - *aeyoll*
+#### Documentation
+- bump minimum rust version - (5b58a74) - aeyoll
+
+- - -
+
 ## v0.1.17 - 2024-11-26
 #### Build system
 - **(deps)** update git2 - (328b5c2) - *aeyoll*
