@@ -185,7 +185,7 @@ impl Release<'_> {
     /// Get a job by its id
     pub fn get_job(&self, job_id: u64) -> Result<Job, Error> {
         let job_endpoint = projects::jobs::Job::builder()
-            .project(PROJECT_NAME.to_string())
+            .project(PROJECT_NAME.as_str())
             .job(job_id)
             .build()
             .unwrap();
@@ -196,7 +196,7 @@ impl Release<'_> {
     /// Get the last pipeline id
     pub fn get_last_pipeline_id(&self) -> Result<u64, Error> {
         let mut last_pipeline_id: u64 = 0;
-        let pipeline_ref = self.environment.get_pipeline_ref()?;
+        let pipeline_ref = self.environment.get_pipeline_ref();
         let timeout = 60;
         let mut counter = 0;
 
@@ -204,8 +204,8 @@ impl Release<'_> {
             sleep(Duration::from_secs(1));
 
             let pipelines_endpoint = projects::pipelines::Pipelines::builder()
-                .project(PROJECT_NAME.to_string())
-                .ref_(&pipeline_ref)
+                .project(PROJECT_NAME.as_str())
+                .ref_(pipeline_ref)
                 .order_by(PipelineOrderBy::Id)
                 .sort(SortOrder::Descending)
                 .build()
@@ -244,17 +244,17 @@ impl Release<'_> {
             );
 
             let jobs_endpoint = projects::pipelines::PipelineJobs::builder()
-                .project(PROJECT_NAME.to_string())
+                .project(PROJECT_NAME.as_str())
                 .pipeline(last_pipeline_id)
                 .build()
                 .unwrap();
 
             let jobs: Vec<Job> = jobs_endpoint.query(&self.gitlab)?;
 
-            let deploy_job_name = self.environment.get_deploy_job_name()?;
+            let deploy_job_name = self.environment.get_deploy_job_name();
 
             let deploy_job = jobs.into_iter().find(|job| {
-                job.name.contains(&deploy_job_name)
+                job.name.contains(deploy_job_name)
                     && job.status != StatusState::Failed
                     && job.status != StatusState::Success
             });
@@ -273,7 +273,7 @@ impl Release<'_> {
 
                 // Trigger the deploy job
                 let play_job_endpoint = projects::jobs::PlayJob::builder()
-                    .project(PROJECT_NAME.to_string())
+                    .project(PROJECT_NAME.as_str())
                     .job(job.id)
                     .build()
                     .unwrap();

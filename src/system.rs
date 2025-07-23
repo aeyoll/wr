@@ -9,6 +9,21 @@ use crate::{
     DEVELOP_BRANCH, MASTER_BRANCH,
 };
 
+const GIT_COMMAND: &str = "git";
+const WHICH_COMMAND: &str = "which";
+const GIT_FLOW_AVH_IDENTIFIER: &str = "AVH";
+const GITLAB_CI_FILE: &str = ".gitlab-ci.yml";
+
+const GIT_NOT_FOUND_MSG: &str = "\"git\" not found. Please install git.";
+const GIT_FLOW_NOT_FOUND_MSG: &str = "\"git-flow\" not found. Please install git-flow.";
+const GIT_FLOW_WRONG_VERSION_MSG: &str = "You have the wrong version of git flow installed. If you are on MacOS, make sure to install 'git-flow-avh'";
+const GIT_FLOW_NOT_INITIALIZED_MSG: &str = "Please run 'git flow init'.";
+const REPO_UP_TO_DATE_MSG: &str = "Repository is up-to-date, nothing to do.";
+const REPO_NEED_PULL_MSG: &str = "Repository need to be pulled first.";
+const REPO_DIVERGED_MSG: &str = "Branch have diverged, please fix the conflict first.";
+const REPO_DIRTY_MSG: &str =
+    "Repository is dirty. Please commit or stash your last changes before running wr.";
+
 pub struct System<'a> {
     pub repository: &'a Repository,
     pub force: bool,
@@ -17,31 +32,33 @@ pub struct System<'a> {
 impl System<'_> {
     /// Test if git is installed
     fn check_git(&self) -> Result<(), Error> {
-        let output = cmd!("which", "git").stdout_capture().run()?;
+        let output = cmd!(WHICH_COMMAND, GIT_COMMAND).stdout_capture().run()?;
 
         match output.status.code() {
             Some(0) => Ok(()),
-            _ => Err(anyhow!("\"git\" not found. Please install git.")),
+            _ => Err(anyhow!(GIT_NOT_FOUND_MSG)),
         }
     }
 
     /// Test if git-flow is installed
     fn check_git_flow(&self) -> Result<(), Error> {
-        let output = cmd!("git", "flow", "version").stdout_capture().run()?;
+        let output = cmd!(GIT_COMMAND, "flow", "version")
+            .stdout_capture()
+            .run()?;
 
         match output.status.code() {
             Some(0) => Ok(()),
-            _ => Err(anyhow!("\"git-flow\" not found. Please install git-flow.")),
+            _ => Err(anyhow!(GIT_FLOW_NOT_FOUND_MSG)),
         }
     }
 
     /// Test if git-flow AVH is installed
     fn check_git_flow_version(&self) -> Result<(), Error> {
-        let output = cmd!("git", "flow", "version").read()?;
+        let output = cmd!(GIT_COMMAND, "flow", "version").read()?;
 
-        match output.contains("AVH").then_some(0) {
+        match output.contains(GIT_FLOW_AVH_IDENTIFIER).then_some(0) {
             Some(_) => Ok(()),
-            _ => Err(anyhow!("You have the wrong version of git flow installed. If you are on MacOS, make sure to install 'git-flow-avh'"))
+            _ => Err(anyhow!(GIT_FLOW_WRONG_VERSION_MSG)),
         }
     }
 
@@ -55,14 +72,14 @@ impl System<'_> {
 
     /// Test if the repository is initialized with git flow
     fn is_git_flow_initialized(&self) -> Result<(), Error> {
-        let output = cmd!("git", "flow", "config")
+        let output = cmd!(GIT_COMMAND, "flow", "config")
             .stdout_capture()
             .stderr_capture()
             .run();
 
         match output {
             Ok(_) => Ok(()),
-            Err(_) => Err(anyhow!("Please run 'git flow init'.")),
+            Err(_) => Err(anyhow!(GIT_FLOW_NOT_INITIALIZED_MSG)),
         }
     }
 
@@ -87,7 +104,7 @@ impl System<'_> {
 
     /// Test if an upstream branch is correctly defined
     fn is_upstream_branch_defined(&self, branch_name: &str) -> Result<(), Error> {
-        let spec = format!("{branch_name}@{{u}}", branch_name = branch_name);
+        let spec = format!("{branch_name}@{{u}}");
         let revspec = self.repository.revparse(&spec);
 
         match revspec {
@@ -95,7 +112,6 @@ impl System<'_> {
             Err(_) => Err(anyhow!("
                 Upstream branches are not correctly defined.
                 Please run 'git checkout {branch_name} && git branch --set-upstream-to=origin/{branch_name} {branch_name}'.",
-                branch_name=branch_name
             )),
         }
     }
@@ -136,20 +152,18 @@ impl System<'_> {
                     info!("[Setup] Repository is up-to-date, but force flag has been passed.");
                     Ok(())
                 } else {
-                    Err(anyhow!("Repository is up-to-date, nothing to do."))
+                    Err(anyhow!(REPO_UP_TO_DATE_MSG))
                 }
             }
-            RepositoryStatus::NeedToPull => Err(anyhow!("Repository need to be pulled first.")),
-            RepositoryStatus::Diverged => Err(anyhow!(
-                "Branch have diverged, please fix the conflict first."
-            )),
+            RepositoryStatus::NeedToPull => Err(anyhow!(REPO_NEED_PULL_MSG)),
+            RepositoryStatus::Diverged => Err(anyhow!(REPO_DIVERGED_MSG)),
             RepositoryStatus::NeedToPush => Ok(()),
         }
     }
 
     /// Test if the repository has a .gitlab-ci.yml
     pub fn has_gitlab_ci(&self) -> bool {
-        self.file_exists(".gitlab-ci.yml")
+        self.file_exists(GITLAB_CI_FILE)
     }
 
     /// Test if repository is clean
@@ -161,9 +175,7 @@ impl System<'_> {
 
         match (statuses.is_empty()).then_some(0) {
             Some(_) => Ok(()),
-            _ => Err(anyhow!(
-                "Repository is dirty. Please commit or stash your last changes before running wr."
-            )),
+            _ => Err(anyhow!(REPO_DIRTY_MSG)),
         }
     }
 
