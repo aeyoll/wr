@@ -110,10 +110,11 @@ pub fn get_remote(repository: &Repository) -> Result<Remote, Error> {
 }
 
 /// Get the gitflow branches refs
-pub fn get_gitflow_branches_refs() -> Vec<String> {
-    let branches = [MASTER_BRANCH.as_str(), DEVELOP_BRANCH.as_str()];
-    let branches_refs: Vec<String> = branches.iter().map(|a| ref_by_branch(a)).collect();
-    branches_refs
+pub fn get_gitflow_branches_refs() -> [String; 2] {
+    [
+        ref_by_branch(&MASTER_BRANCH),
+        ref_by_branch(&DEVELOP_BRANCH),
+    ]
 }
 
 #[cfg(test)]

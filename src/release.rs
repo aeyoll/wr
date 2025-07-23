@@ -154,18 +154,19 @@ impl Release<'_> {
     /// Deploy to the production environment
     pub fn push_production(&self) -> Result<(), Error> {
         let mut push_options = self.get_push_options();
+        let mut remote = get_remote(self.repository)?;
 
         // Push master and develop branches
-        let branches_refs: Vec<String> = get_gitflow_branches_refs();
-        let mut remote = get_remote(self.repository)?;
+        let branches_refs = get_gitflow_branches_refs();
         remote.push(&branches_refs, Some(&mut push_options))?;
 
         // Push all tags
-        let tags = self.repository.tag_names(None).unwrap();
-        let tag_refs: Vec<String> = tags
+        let tag_refs: Vec<String> = self
+            .repository
+            .tag_names(None)
+            .unwrap()
             .iter()
-            .map(|a| a.unwrap())
-            .map(git::ref_by_tag)
+            .filter_map(|tag| tag.map(git::ref_by_tag))
             .collect();
         remote.push(&tag_refs, Some(&mut push_options))?;
 
@@ -212,11 +213,12 @@ impl Release<'_> {
                 .unwrap();
 
             let pipelines: Vec<Pipeline> = pipelines_endpoint.query(&self.gitlab)?;
-            let filtered_pipelines = pipelines
-                .into_iter()
-                .filter(|pipeline| pipeline.status == "skipped" || pipeline.status == "running");
 
-            if let Some(last_pipeline) = filtered_pipelines.into_iter().next() {
+            // Find the first pipeline that matches our criteria directly
+            if let Some(last_pipeline) = pipelines
+                .into_iter()
+                .find(|pipeline| pipeline.status == "skipped" || pipeline.status == "running")
+            {
                 last_pipeline_id = last_pipeline.id;
             }
 

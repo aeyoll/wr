@@ -126,7 +126,7 @@ impl System<'_> {
         let mut remote = get_remote(self.repository)?;
 
         // Fetch first
-        let branches_refs: Vec<String> = get_gitflow_branches_refs();
+        let branches_refs = get_gitflow_branches_refs();
         remote.download(&branches_refs, Some(&mut fetch_options))?;
 
         // Then compare base, local and remote (https://stackoverflow.com/a/3278427)
