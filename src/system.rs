@@ -46,7 +46,7 @@ impl System<'_> {
     }
 
     /// Test if a file exists
-    fn file_exists(&self, file_name: String) -> bool {
+    fn file_exists(&self, file_name: &str) -> bool {
         let current_dir = env::current_dir().unwrap();
         let path = format!("{}/{}", current_dir.display(), file_name);
 
@@ -67,7 +67,7 @@ impl System<'_> {
     }
 
     /// Test the active branch in a git repository
-    fn is_on_branch(&self, branch_name: String) -> Result<(), Error> {
+    fn is_on_branch(&self, branch_name: &str) -> Result<(), Error> {
         let head = match self.repository.head() {
             Ok(head) => Some(head),
             Err(ref e)
@@ -86,7 +86,7 @@ impl System<'_> {
     }
 
     /// Test if an upstream branch is correctly defined
-    fn is_upstream_branch_defined(&self, branch_name: String) -> Result<(), Error> {
+    fn is_upstream_branch_defined(&self, branch_name: &str) -> Result<(), Error> {
         let spec = format!("{branch_name}@{{u}}", branch_name = branch_name);
         let revspec = self.repository.revparse(&spec);
 
@@ -149,7 +149,7 @@ impl System<'_> {
 
     /// Test if the repository has a .gitlab-ci.yml
     pub fn has_gitlab_ci(&self) -> bool {
-        self.file_exists(".gitlab-ci.yml".to_string())
+        self.file_exists(".gitlab-ci.yml")
     }
 
     /// Test if repository is clean
@@ -185,11 +185,11 @@ impl System<'_> {
             "Checking if the repository is on the {} branch.",
             DEVELOP_BRANCH.as_str()
         );
-        self.is_on_branch(DEVELOP_BRANCH.to_string())?;
+        self.is_on_branch(&DEVELOP_BRANCH)?;
 
         debug!("Checking if upstreams are defined.");
-        self.is_upstream_branch_defined(MASTER_BRANCH.to_string())?;
-        self.is_upstream_branch_defined(DEVELOP_BRANCH.to_string())?;
+        self.is_upstream_branch_defined(&MASTER_BRANCH)?;
+        self.is_upstream_branch_defined(&DEVELOP_BRANCH)?;
 
         debug!("Checking if the repository is up-to-date with origin.");
         self.get_repository_status()?;

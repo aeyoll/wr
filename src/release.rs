@@ -79,11 +79,11 @@ impl Release<'_> {
     }
 
     /// Push a branch to the remote
-    fn push_branch(&self, branch_name: String) -> Result<(), Error> {
+    fn push_branch(&self, branch_name: &str) -> Result<(), Error> {
         let mut push_options = self.get_push_options();
         let mut remote = get_remote(self.repository)?;
 
-        remote.push(&[git::ref_by_branch(&branch_name)], Some(&mut push_options))?;
+        remote.push(&[git::ref_by_branch(branch_name)], Some(&mut push_options))?;
 
         Ok(())
     }
@@ -147,7 +147,7 @@ impl Release<'_> {
 
     /// Deploy to the staging environment
     pub fn push_staging(&self) -> Result<(), Error> {
-        self.push_branch(DEVELOP_BRANCH.to_string())?;
+        self.push_branch(&DEVELOP_BRANCH)?;
         Ok(())
     }
 
