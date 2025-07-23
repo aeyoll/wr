@@ -24,7 +24,7 @@ use gitlab::{
 use dialoguer::{theme::ColorfulTheme, Confirm};
 use duct::cmd;
 
-use crate::{DEVELOP_BRANCH, PROJECT_NAME};
+use crate::{DEVELOP_BRANCH, GITLAB_HOST, PROJECT_NAME};
 
 pub struct Release<'a> {
     pub gitlab: Gitlab,
@@ -232,6 +232,15 @@ impl Release<'_> {
     pub fn deploy(&self) -> Result<(), Error> {
         info!("[Deploy] Fetching latest pipeline.");
         if let Ok(last_pipeline_id) = self.get_last_pipeline_id() {
+            let pipeline_url = format!(
+                "https://{}/{}/-/pipelines/{}",
+                *GITLAB_HOST, *PROJECT_NAME, last_pipeline_id
+            );
+            info!(
+                "[Deploy] Pipeline id {} is running ({}).",
+                last_pipeline_id, pipeline_url
+            );
+
             let jobs_endpoint = projects::pipelines::PipelineJobs::builder()
                 .project(PROJECT_NAME.to_string())
                 .pipeline(last_pipeline_id)

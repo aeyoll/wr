@@ -34,8 +34,9 @@ use semver_type::SemverType;
 mod release;
 use release::Release;
 
-use crate::git::get_project_name;
-use crate::git::{get_gitflow_branch_name, get_repository};
+use crate::git::{
+    get_gitflow_branch_name, get_gitlab_host, get_gitlab_token, get_project_name, get_repository,
+};
 
 mod git;
 mod repository_status;
@@ -47,6 +48,8 @@ lazy_static! {
     static ref DEVELOP_BRANCH: String = get_gitflow_branch_name(DEVELOP);
     static ref MASTER_BRANCH: String = get_gitflow_branch_name(MASTER);
     static ref PROJECT_NAME: String = get_project_name();
+    static ref GITLAB_HOST: String = get_gitlab_host();
+    static ref GITLAB_TOKEN: String = get_gitlab_token();
 }
 
 #[derive(Parser)]
@@ -105,8 +108,6 @@ fn app() -> Result<(), Error> {
 
     // Init
     info!("Welcome to wr.");
-    let gitlab_host = env::var("GITLAB_HOST").unwrap_or_else(|_| "gitlab.com".to_string());
-    let gitlab_token = env::var("GITLAB_TOKEN").unwrap_or_else(|_| "".to_string());
 
     // Get a git2 "Repository" struct
     let repository = get_repository()?;
@@ -136,14 +137,14 @@ fn app() -> Result<(), Error> {
         semver_type
     );
 
-    info!("[Setup] Login into Gitlab instance \"{}\".", gitlab_host);
-    let gitlab = match Gitlab::new(&gitlab_host, &gitlab_token) {
+    info!("[Setup] Login into Gitlab instance \"{}\".", *GITLAB_HOST);
+    let gitlab = match Gitlab::new(&*GITLAB_HOST, &*GITLAB_TOKEN) {
         Ok(client) => client,
         Err(e) => {
             return Err(anyhow!(
                 "Failed to connect to Gitlab instance \"{}\", with token \"{}\" ({:?})",
-                &gitlab_host,
-                &gitlab_token,
+                *GITLAB_HOST,
+                *GITLAB_TOKEN,
                 e
             ))
         }

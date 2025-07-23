@@ -34,6 +34,16 @@ pub fn get_config() -> Config {
     config
 }
 
+/// Get gitlab host from the environment variable
+pub fn get_gitlab_host() -> String {
+    env::var("GITLAB_HOST").unwrap_or_else(|_| "gitlab.com".to_string())
+}
+
+/// Get gitlab token from the environment variable
+pub fn get_gitlab_token() -> String {
+    env::var("GITLAB_TOKEN").unwrap_or_else(|_| "".to_string())
+}
+
 ///
 pub fn get_gitflow_branch_name(branch: &str) -> String {
     let config = get_config();
