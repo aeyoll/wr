@@ -78,7 +78,7 @@ impl Release<'_> {
         Ok(next_tag)
     }
 
-    ///
+    /// Push a branch to the remote
     fn push_branch(&self, branch_name: String) -> Result<(), Error> {
         let mut push_options = self.get_push_options();
         let mut remote = get_remote(self.repository)?;
@@ -88,6 +88,7 @@ impl Release<'_> {
         Ok(())
     }
 
+    /// Create a production release
     pub fn create_production_release(&self) -> Result<(), Error> {
         let next_tag = self.get_next_tag()?;
 
@@ -137,6 +138,7 @@ impl Release<'_> {
         }
     }
 
+    /// Get the push options
     pub fn get_push_options(&self) -> PushOptions<'static> {
         let mut push_options = PushOptions::new();
         push_options.remote_callbacks(git::create_remote_callback().unwrap());
@@ -180,7 +182,7 @@ impl Release<'_> {
         Ok(())
     }
 
-    ///
+    /// Get a job by its id
     pub fn get_job(&self, job_id: u64) -> Result<Job, Error> {
         let job_endpoint = projects::jobs::Job::builder()
             .project(PROJECT_NAME.to_string())
@@ -191,7 +193,7 @@ impl Release<'_> {
         Ok(job)
     }
 
-    ///
+    /// Get the last pipeline id
     pub fn get_last_pipeline_id(&self) -> Result<u64, Error> {
         let mut last_pipeline_id: u64 = 0;
         let pipeline_ref = self.environment.get_pipeline_ref()?;
@@ -228,7 +230,7 @@ impl Release<'_> {
         Ok(last_pipeline_id)
     }
 
-    ///
+    /// Deploy to the environment
     pub fn deploy(&self) -> Result<(), Error> {
         info!("[Deploy] Fetching latest pipeline.");
         if let Ok(last_pipeline_id) = self.get_last_pipeline_id() {

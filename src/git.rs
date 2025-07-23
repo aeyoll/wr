@@ -44,7 +44,7 @@ pub fn get_gitlab_token() -> String {
     env::var("GITLAB_TOKEN").unwrap_or_else(|_| "".to_string())
 }
 
-///
+/// Get the gitflow branch name
 pub fn get_gitflow_branch_name(branch: &str) -> String {
     let config = get_config();
     let config_path = format!("gitflow.branch.{}", &branch);
@@ -105,7 +105,7 @@ pub fn get_remote(repository: &Repository) -> Result<Remote, Error> {
     Ok(remote)
 }
 
-///
+/// Get the gitflow branches refs
 pub fn get_gitflow_branches_refs() -> Vec<String> {
     let branches = [MASTER_BRANCH.to_string(), DEVELOP_BRANCH.to_string()];
     let branches_refs: Vec<String> = branches.iter().map(|a| ref_by_branch(a)).collect();
