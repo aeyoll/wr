@@ -192,7 +192,7 @@ fn main() {
             0
         }
         Err(err) => {
-            error!("{}", err.to_string());
+            error!("{}", err);
             1
         }
     });
