@@ -92,7 +92,7 @@ impl Release<'_> {
     pub fn create_production_release(&self) -> Result<(), Error> {
         let next_tag = self.get_next_tag()?;
 
-        info!("[Release] This will create release tag {}.", next_tag);
+        info!("[Release] This will create release tag {next_tag}.");
 
         match Confirm::with_theme(&ColorfulTheme::default())
             .with_prompt("Do you want to continue?")
@@ -100,7 +100,7 @@ impl Release<'_> {
             .unwrap()
         {
             Some(true) => {
-                info!("[Release] Creating release {}.", next_tag);
+                info!("[Release] Creating release {next_tag}.");
                 cmd!("git", "flow", "release", "start", next_tag.to_string())
                     .stdout_capture()
                     .stderr_capture()
@@ -240,10 +240,7 @@ impl Release<'_> {
                 "https://{}/{}/-/pipelines/{}",
                 *GITLAB_HOST, *PROJECT_NAME, last_pipeline_id
             );
-            info!(
-                "[Deploy] Pipeline id {} is running ({}).",
-                last_pipeline_id, pipeline_url
-            );
+            info!("[Deploy] Pipeline id {last_pipeline_id} is running ({pipeline_url}).");
 
             let jobs_endpoint = projects::pipelines::PipelineJobs::builder()
                 .project(PROJECT_NAME.as_str())

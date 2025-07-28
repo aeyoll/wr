@@ -46,7 +46,7 @@ impl FromStr for Environment {
 /// Display the environment as a string
 impl fmt::Display for Environment {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        write!(f, "{:?}", self)
+        write!(f, "{self:?}")
     }
 }
 

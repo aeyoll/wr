@@ -124,18 +124,12 @@ fn app() -> Result<(), Error> {
     // Get environment
     debug!("Getting the environment name from the arguments.");
     let environment: Environment = matches.environment;
-    info!(
-        "[Setup] {} environment was found from the arguments.",
-        environment
-    );
+    info!("[Setup] {environment} environment was found from the arguments.");
 
     // Get semver type
     debug!("Getting the semver type from the arguments.");
     let semver_type: SemverType = matches.semver_type;
-    info!(
-        "[Setup] {} semver type was found from the arguments.",
-        semver_type
-    );
+    info!("[Setup] {semver_type} semver type was found from the arguments.");
 
     info!("[Setup] Login into Gitlab instance \"{}\".", *GITLAB_HOST);
     let gitlab = match Gitlab::new(&*GITLAB_HOST, &*GITLAB_TOKEN) {
@@ -157,19 +151,13 @@ fn app() -> Result<(), Error> {
         semver_type,
     };
 
-    debug!("[Release] Creating a new {} release.", environment);
+    debug!("[Release] Creating a new {environment} release.");
     release.create()?;
-    info!("[Release] A new {} release has been created.", environment);
+    info!("[Release] A new {environment} release has been created.");
 
-    debug!(
-        "[Release] Pushing the {} release to the remote repository.",
-        environment
-    );
+    debug!("[Release] Pushing the {environment} release to the remote repository.");
     release.push()?;
-    info!(
-        "[Release] {} release has been pushed to the remote repository.",
-        environment
-    );
+    info!("[Release] {environment} release has been pushed to the remote repository.");
 
     if matches.deploy {
         if s.has_gitlab_ci() {
@@ -192,7 +180,7 @@ fn main() {
             0
         }
         Err(err) => {
-            error!("{}", err);
+            error!("{err}");
             1
         }
     });

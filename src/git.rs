@@ -13,12 +13,12 @@ const REMOTE_ORIGIN_URL_PATH: &str = "remote.origin.url";
 
 /// Format a git branch ref
 pub fn ref_by_branch(branch: &str) -> String {
-    format!("refs/heads/{}:refs/heads/{}", branch, branch)
+    format!("refs/heads/{branch}:refs/heads/{branch}")
 }
 
 /// Format a git tag ref
 pub fn ref_by_tag(tag: &str) -> String {
-    format!("refs/tags/{}:refs/tags/{}", tag, tag)
+    format!("refs/tags/{tag}:refs/tags/{tag}")
 }
 
 /// Fetch credentials from the ssh-agent
@@ -38,7 +38,7 @@ pub fn get_config() -> Config {
 
     // Check if the .git/config file exists first
     if !Path::new(&path).exists() {
-        panic!("No git configuration found at {}", path);
+        panic!("No git configuration found at {path}");
     }
 
     let config = Config::open(Path::new(&path)).unwrap();
