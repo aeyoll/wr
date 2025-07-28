@@ -2,6 +2,26 @@
 All notable changes to this project will be documented in this file. See [conventional commits](https://www.conventionalcommits.org/) for commit guidelines.
 
 - - -
+## v0.1.19 - 2025-07-28
+#### Build system
+- **(deps)** bump dependencies - (b4708d1) - *aeyoll*
+- **(deps)** bump tokio from 1.44.0 to 1.44.2 (#31) - (729feab) - dependabot[bot]
+- **(deps)** bump openssl from 0.10.71 to 0.10.72 (#30) - (76cceaa) - dependabot[bot]
+#### Features
+- display the pipeline url when running a deploy job - (8cca790) - aeyoll
+#### Miscellaneous Chores
+- **(clippy)** add comments to functions - (590494e) - *aeyoll*
+- **(clippy)** remove an useless "to_string" - (7c50f4d) - *aeyoll*
+#### Performance Improvements
+- remove unnecessary vec creation - (5860a4e) - aeyoll
+- reduce string allocation overhead - (6c52327) - aeyoll
+#### Refactoring
+- replace String arguments with &str - (79fbdc8) - aeyoll
+#### Tests
+- add many tests - (6d05f84) - aeyoll
+
+- - -
+
 ## v0.1.18 - 2025-03-09
 #### Build system
 - **(deps)** bump dependencies - (6675953) - *aeyoll*
