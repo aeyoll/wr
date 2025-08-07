@@ -2,6 +2,10 @@
 
 # shellcheck disable=SC2181
 
+# Environment variables:
+# WR_TARGET - Override target platform (e.g., x86_64-unknown-linux-gnu, aarch64-apple-darwin)
+# WR_INSTALL - Override install directory (e.g., /usr/local/bin)
+
 # Reset
 Color_Off=''
 
@@ -28,16 +32,20 @@ if test -t 1; then
     BGreen='\033[1;32m' # Green
 fi
 
-case $(uname -sm) in
-    "Darwin x86_64") target="x86_64-apple-darwin" ;;
-    "Darwin arm64") target="aarch64-apple-darwin" ;;
-    "Linux aarch64") target="aarch64-unknown-linux-gnu" ;;
-    "Linux arm64") target="aarch64-unknown-linux-gnu" ;;
-    "Linux x86_64") target="x86_64-unknown-linux-gnu" ;;
-    *) target="x86_64-unknown-linux-gnu" ;;
-esac
+if [ -n "$WR_TARGET" ]; then
+    target="$WR_TARGET"
+else
+    case $(uname -sm) in
+        "Darwin x86_64") target="x86_64-apple-darwin" ;;
+        "Darwin arm64") target="aarch64-apple-darwin" ;;
+        "Linux aarch64") target="aarch64-unknown-linux-gnu" ;;
+        "Linux arm64") target="aarch64-unknown-linux-gnu" ;;
+        "Linux x86_64") target="x86_64-unknown-linux-gnu" ;;
+        *) target="x86_64-unknown-linux-gnu" ;;
+    esac
+fi
 
-if [ "$target" = "x86_64-apple-darwin" ]; then
+if [ -z "$WR_TARGET" ] && [ "$target" = "x86_64-apple-darwin" ]; then
     # Is it rosetta?
     sysctl sysctl.proc_translated >/dev/null 2>&1
     if [ $? -eq 0 ]; then
