@@ -29,6 +29,11 @@ To install wr, use the install-script and add `$HOME/.wr/bin` to your `$PATH`.
 curl -fsSL https://raw.githubusercontent.com/aeyoll/wr/main/install.sh | bash
 ```
 
+Environment variables:
+
+- `WR_INSTALL` - Override install directory (e.g., `/usr/local`)
+- `WR_TARGET` - Override target platform (e.g., `x86_64-unknown-linux-musl`)
+
 Configuration
 ----
 
