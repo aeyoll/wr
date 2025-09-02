@@ -107,7 +107,7 @@ pub fn get_repository() -> Result<Repository, Error> {
 }
 
 /// Get a Remote instance from the current repository
-pub fn get_remote(repository: &Repository) -> Result<Remote, Error> {
+pub fn get_remote(repository: &Repository) -> Result<Remote<'_>, Error> {
     debug!("Try to find the remote for current repository.");
     let remote = repository.find_remote(ORIGIN_REMOTE)?;
     debug!("Found git repository's remote.");
