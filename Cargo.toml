@@ -7,7 +7,8 @@ license = "MIT"
 homepage = "https://github.com/aeyoll/wr"
 
 [dependencies]
-anyhow = "1.0.93"
+miette = { version = "7.2", features = ["fancy"] }
+thiserror = "1.0"
 chrono = "0.4.38"
 clap = {version = "3.2.25", features = ["derive"]}
 dialoguer = "0.11.0"

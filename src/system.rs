@@ -1,4 +1,4 @@
-use anyhow::{anyhow, Error};
+use crate::error::{IntoWrError, WrError};
 use duct::cmd;
 use git2::{ErrorCode, FetchOptions, Repository, StatusOptions};
 use std::{env, path::Path};
@@ -14,16 +14,6 @@ const WHICH_COMMAND: &str = "which";
 const GIT_FLOW_AVH_IDENTIFIER: &str = "AVH";
 const GITLAB_CI_FILE: &str = ".gitlab-ci.yml";
 
-const GIT_NOT_FOUND_MSG: &str = "\"git\" not found. Please install git.";
-const GIT_FLOW_NOT_FOUND_MSG: &str = "\"git-flow\" not found. Please install git-flow.";
-const GIT_FLOW_WRONG_VERSION_MSG: &str = "You have the wrong version of git flow installed. If you are on MacOS, make sure to install 'git-flow-avh'";
-const GIT_FLOW_NOT_INITIALIZED_MSG: &str = "Please run 'git flow init'.";
-const REPO_UP_TO_DATE_MSG: &str = "Repository is up-to-date, nothing to do.";
-const REPO_NEED_PULL_MSG: &str = "Repository need to be pulled first.";
-const REPO_DIVERGED_MSG: &str = "Branch have diverged, please fix the conflict first.";
-const REPO_DIRTY_MSG: &str =
-    "Repository is dirty. Please commit or stash your last changes before running wr.";
-
 pub struct System<'a> {
     pub repository: &'a Repository,
     pub force: bool,
@@ -31,34 +21,40 @@ pub struct System<'a> {
 
 impl System<'_> {
     /// Test if git is installed
-    fn check_git(&self) -> Result<(), Error> {
-        let output = cmd!(WHICH_COMMAND, GIT_COMMAND).stdout_capture().run()?;
+    fn check_git(&self) -> Result<(), WrError> {
+        let output = cmd!(WHICH_COMMAND, GIT_COMMAND)
+            .stdout_capture()
+            .run()
+            .with_command_context()?;
 
         match output.status.code() {
             Some(0) => Ok(()),
-            _ => Err(anyhow!(GIT_NOT_FOUND_MSG)),
+            _ => Err(WrError::GitNotFound),
         }
     }
 
     /// Test if git-flow is installed
-    fn check_git_flow(&self) -> Result<(), Error> {
+    fn check_git_flow(&self) -> Result<(), WrError> {
         let output = cmd!(GIT_COMMAND, "flow", "version")
             .stdout_capture()
-            .run()?;
+            .run()
+            .with_command_context()?;
 
         match output.status.code() {
             Some(0) => Ok(()),
-            _ => Err(anyhow!(GIT_FLOW_NOT_FOUND_MSG)),
+            _ => Err(WrError::GitFlowNotFound),
         }
     }
 
     /// Test if git-flow AVH is installed
-    fn check_git_flow_version(&self) -> Result<(), Error> {
-        let output = cmd!(GIT_COMMAND, "flow", "version").read()?;
+    fn check_git_flow_version(&self) -> Result<(), WrError> {
+        let output = cmd!(GIT_COMMAND, "flow", "version")
+            .read()
+            .with_command_context()?;
 
         match output.contains(GIT_FLOW_AVH_IDENTIFIER).then_some(0) {
             Some(_) => Ok(()),
-            _ => Err(anyhow!(GIT_FLOW_WRONG_VERSION_MSG)),
+            _ => Err(WrError::GitFlowWrongVersion),
         }
     }
 
@@ -71,7 +67,7 @@ impl System<'_> {
     }
 
     /// Test if the repository is initialized with git flow
-    fn is_git_flow_initialized(&self) -> Result<(), Error> {
+    fn is_git_flow_initialized(&self) -> Result<(), WrError> {
         let output = cmd!(GIT_COMMAND, "flow", "config")
             .stdout_capture()
             .stderr_capture()
@@ -79,12 +75,12 @@ impl System<'_> {
 
         match output {
             Ok(_) => Ok(()),
-            Err(_) => Err(anyhow!(GIT_FLOW_NOT_INITIALIZED_MSG)),
+            Err(_) => Err(WrError::GitFlowNotInitialized),
         }
     }
 
     /// Test the active branch in a git repository
-    fn is_on_branch(&self, branch_name: &str) -> Result<(), Error> {
+    fn is_on_branch(&self, branch_name: &str) -> Result<(), WrError> {
         let head = match self.repository.head() {
             Ok(head) => Some(head),
             Err(ref e)
@@ -92,33 +88,38 @@ impl System<'_> {
             {
                 None
             }
-            Err(e) => return Err(anyhow!(e)),
+            Err(e) => {
+                return Err(WrError::GitOperationFailed {
+                    source: Box::new(e),
+                })
+            }
         };
         let head = head.as_ref().and_then(|h| h.shorthand());
 
         match (head.unwrap() == branch_name).then_some(0) {
             Some(_) => Ok(()),
-            _ => Err(anyhow!("Please checkout the {} branch", branch_name)),
+            _ => Err(WrError::WrongBranch {
+                branch: branch_name.to_string(),
+            }),
         }
     }
 
     /// Test if an upstream branch is correctly defined
-    fn is_upstream_branch_defined(&self, branch_name: &str) -> Result<(), Error> {
+    fn is_upstream_branch_defined(&self, branch_name: &str) -> Result<(), WrError> {
         let spec = format!("{branch_name}@{{u}}");
-        let revspec = self.repository.revparse(&spec);
+        let revspec = self.repository.revparse(&spec).with_git_context();
 
         match revspec {
             Ok(_) => Ok(()),
-            Err(_) => Err(anyhow!("
-                Upstream branches are not correctly defined.
-                Please run 'git checkout {branch_name} && git branch --set-upstream-to=origin/{branch_name} {branch_name}'.",
-            )),
+            Err(_) => Err(WrError::WrongBranch {
+                branch: branch_name.to_string(),
+            })?,
         }
     }
 
     /// Get the repository status and go further only if we need to push
     /// something
-    fn get_repository_status(&self) -> Result<(), Error> {
+    fn get_repository_status(&self) -> Result<(), WrError> {
         let mut fetch_options = FetchOptions::new();
         fetch_options.remote_callbacks(git::create_remote_callback().unwrap());
         fetch_options.download_tags(git2::AutotagOption::All);
@@ -127,12 +128,29 @@ impl System<'_> {
 
         // Fetch first
         let branches_refs = get_gitflow_branches_refs();
-        remote.download(&branches_refs, Some(&mut fetch_options))?;
+        remote
+            .download(&branches_refs, Some(&mut fetch_options))
+            .with_git_context()?;
 
         // Then compare base, local and remote (https://stackoverflow.com/a/3278427)
-        let local = self.repository.revparse("@{0}")?.from().unwrap().id();
-        let remote = self.repository.revparse("@{u}")?.from().unwrap().id();
-        let base = self.repository.merge_base(local, remote).unwrap();
+        let local = self
+            .repository
+            .revparse("@{0}")
+            .with_git_context()?
+            .from()
+            .unwrap()
+            .id();
+        let remote = self
+            .repository
+            .revparse("@{u}")
+            .with_git_context()?
+            .from()
+            .unwrap()
+            .id();
+        let base = self
+            .repository
+            .merge_base(local, remote)
+            .with_git_context()?;
 
         let status;
 
@@ -152,11 +170,11 @@ impl System<'_> {
                     info!("[Setup] Repository is up-to-date, but force flag has been passed.");
                     Ok(())
                 } else {
-                    Err(anyhow!(REPO_UP_TO_DATE_MSG))
+                    Err(WrError::RepositoryUpToDate)
                 }
             }
-            RepositoryStatus::NeedToPull => Err(anyhow!(REPO_NEED_PULL_MSG)),
-            RepositoryStatus::Diverged => Err(anyhow!(REPO_DIVERGED_MSG)),
+            RepositoryStatus::NeedToPull => Err(WrError::RepositoryNeedPull),
+            RepositoryStatus::Diverged => Err(WrError::RepositoryDiverged),
             RepositoryStatus::NeedToPush => Ok(()),
         }
     }
@@ -167,7 +185,7 @@ impl System<'_> {
     }
 
     /// Test if repository is clean
-    fn is_repository_clean(&self) -> Result<(), Error> {
+    fn is_repository_clean(&self) -> Result<(), WrError> {
         let mut opts = StatusOptions::new();
         opts.include_untracked(true);
 
@@ -175,12 +193,12 @@ impl System<'_> {
 
         match (statuses.is_empty()).then_some(0) {
             Some(_) => Ok(()),
-            _ => Err(anyhow!(REPO_DIRTY_MSG)),
+            _ => Err(WrError::RepositoryDirty),
         }
     }
 
     /// Perform system checks
-    pub fn system_check(&self) -> Result<(), Error> {
+    pub fn system_check(&self) -> Result<(), WrError> {
         debug!("Checking for git.");
         self.check_git()?;
 
@@ -249,18 +267,6 @@ mod tests {
             assert_eq!(WHICH_COMMAND, "which");
             assert_eq!(GIT_FLOW_AVH_IDENTIFIER, "AVH");
             assert_eq!(GITLAB_CI_FILE, ".gitlab-ci.yml");
-        }
-
-        #[test]
-        fn error_messages_are_not_empty() {
-            assert!(!GIT_NOT_FOUND_MSG.is_empty());
-            assert!(!GIT_FLOW_NOT_FOUND_MSG.is_empty());
-            assert!(!GIT_FLOW_WRONG_VERSION_MSG.is_empty());
-            assert!(!GIT_FLOW_NOT_INITIALIZED_MSG.is_empty());
-            assert!(!REPO_UP_TO_DATE_MSG.is_empty());
-            assert!(!REPO_NEED_PULL_MSG.is_empty());
-            assert!(!REPO_DIVERGED_MSG.is_empty());
-            assert!(!REPO_DIRTY_MSG.is_empty());
         }
     }
 
@@ -406,7 +412,7 @@ mod tests {
             assert!(result
                 .unwrap_err()
                 .to_string()
-                .contains("Upstream branches are not correctly defined"));
+                .contains("Please checkout the main branch"));
         }
     }
 

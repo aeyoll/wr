@@ -2,6 +2,7 @@ use semver::Version;
 use std::thread::sleep;
 use std::time::Duration;
 
+use crate::error::{IntoWrError, WrError};
 use crate::{
     environment::Environment,
     git::{self, get_gitflow_branches_refs, get_remote},
@@ -10,7 +11,6 @@ use crate::{
     pipeline::StatusState,
     semver_type::SemverType,
 };
-use anyhow::{anyhow, Error};
 use git2::{PushOptions, Repository};
 use gitlab::{
     api::{
@@ -35,8 +35,8 @@ pub struct Release<'a> {
 
 impl Release<'_> {
     /// Fetch the latest tag from a git repository
-    fn get_last_tag(&self) -> Result<Version, Error> {
-        let tags = self.repository.tag_names(None).unwrap();
+    fn get_last_tag(&self) -> Result<Version, WrError> {
+        let tags = self.repository.tag_names(None).with_git_context()?;
 
         let latest_tag = tags
             .iter()
@@ -45,12 +45,12 @@ impl Release<'_> {
 
         match latest_tag {
             Some(version) => Ok(version),
-            None => Err(anyhow!("No tag found")),
+            None => Err(WrError::NoTagFound),
         }
     }
 
     /// Compute the next tag from the existing tag
-    fn get_next_tag(&self) -> Result<Version, Error> {
+    fn get_next_tag(&self) -> Result<Version, WrError> {
         let last_tag = self.get_last_tag();
 
         let next_tag: Version = match last_tag {
@@ -79,17 +79,19 @@ impl Release<'_> {
     }
 
     /// Push a branch to the remote
-    fn push_branch(&self, branch_name: &str) -> Result<(), Error> {
+    fn push_branch(&self, branch_name: &str) -> Result<(), WrError> {
         let mut push_options = self.get_push_options();
         let mut remote = get_remote(self.repository)?;
 
-        remote.push(&[git::ref_by_branch(branch_name)], Some(&mut push_options))?;
+        remote
+            .push(&[git::ref_by_branch(branch_name)], Some(&mut push_options))
+            .with_git_context()?;
 
         Ok(())
     }
 
     /// Create a production release
-    pub fn create_production_release(&self) -> Result<(), Error> {
+    pub fn create_production_release(&self) -> Result<(), WrError> {
         let next_tag = self.get_next_tag()?;
 
         info!("[Release] This will create release tag {next_tag}.");
@@ -125,13 +127,13 @@ impl Release<'_> {
 
                 Ok(())
             }
-            Some(false) => Err(anyhow!("Cancelling.")),
-            None => Err(anyhow!("Aborting.")),
+            Some(false) => Err(WrError::UserCancelled),
+            None => Err(WrError::UserAborted),
         }
     }
 
     /// Create the new release
-    pub fn create(&self) -> Result<(), Error> {
+    pub fn create(&self) -> Result<(), WrError> {
         match self.environment {
             Environment::Production => self.create_production_release(),
             Environment::Staging => Ok(()),
@@ -146,35 +148,39 @@ impl Release<'_> {
     }
 
     /// Deploy to the staging environment
-    pub fn push_staging(&self) -> Result<(), Error> {
+    pub fn push_staging(&self) -> Result<(), WrError> {
         self.push_branch(&DEVELOP_BRANCH)?;
         Ok(())
     }
 
     /// Deploy to the production environment
-    pub fn push_production(&self) -> Result<(), Error> {
+    pub fn push_production(&self) -> Result<(), WrError> {
         let mut push_options = self.get_push_options();
         let mut remote = get_remote(self.repository)?;
 
         // Push master and develop branches
         let branches_refs = get_gitflow_branches_refs();
-        remote.push(&branches_refs, Some(&mut push_options))?;
+        remote
+            .push(&branches_refs, Some(&mut push_options))
+            .with_git_context()?;
 
         // Push all tags
         let tag_refs: Vec<String> = self
             .repository
             .tag_names(None)
-            .unwrap()
+            .with_git_context()?
             .iter()
             .filter_map(|tag| tag.map(git::ref_by_tag))
             .collect();
-        remote.push(&tag_refs, Some(&mut push_options))?;
+        remote
+            .push(&tag_refs, Some(&mut push_options))
+            .with_git_context()?;
 
         Ok(())
     }
 
     /// Push the release
-    pub fn push(&self) -> Result<(), Error> {
+    pub fn push(&self) -> Result<(), WrError> {
         match self.environment {
             Environment::Production => self.push_production()?,
             Environment::Staging => self.push_staging()?,
@@ -184,7 +190,7 @@ impl Release<'_> {
     }
 
     /// Get a job by its id
-    pub fn get_job(&self, job_id: u64) -> Result<Job, Error> {
+    pub fn get_job(&self, job_id: u64) -> Result<Job, WrError> {
         let job_endpoint = projects::jobs::Job::builder()
             .project(PROJECT_NAME.as_str())
             .job(job_id)
@@ -195,7 +201,7 @@ impl Release<'_> {
     }
 
     /// Get the last pipeline id
-    pub fn get_last_pipeline_id(&self) -> Result<u64, Error> {
+    pub fn get_last_pipeline_id(&self) -> Result<u64, WrError> {
         let mut last_pipeline_id: u64 = 0;
         let pipeline_ref = self.environment.get_pipeline_ref();
         let timeout = 60;
@@ -226,14 +232,14 @@ impl Release<'_> {
         }
 
         if last_pipeline_id == 0 {
-            return Err(anyhow!("[Deploy] Pipeline was not found, aborting."));
+            return Err(WrError::PipelineNotFound);
         }
 
         Ok(last_pipeline_id)
     }
 
     /// Deploy to the environment
-    pub fn deploy(&self) -> Result<(), Error> {
+    pub fn deploy(&self) -> Result<(), WrError> {
         info!("[Deploy] Fetching latest pipeline.");
         if let Ok(last_pipeline_id) = self.get_last_pipeline_id() {
             let pipeline_url = format!(
@@ -349,8 +355,8 @@ mod tests {
     }
 
     impl<'a> TestRelease<'a> {
-        fn get_last_tag(&self) -> Result<Version, Error> {
-            let tags = self.repository.tag_names(None).unwrap();
+        fn get_last_tag(&self) -> Result<Version, WrError> {
+            let tags = self.repository.tag_names(None).with_git_context()?;
 
             let latest_tag = tags
                 .iter()
@@ -359,11 +365,11 @@ mod tests {
 
             match latest_tag {
                 Some(version) => Ok(version),
-                None => Err(anyhow!("No tag found")),
+                None => Err(WrError::NoTagFound),
             }
         }
 
-        fn get_next_tag(&self) -> Result<Version, Error> {
+        fn get_next_tag(&self) -> Result<Version, WrError> {
             let last_tag = self.get_last_tag();
 
             let next_tag: Version = match last_tag {

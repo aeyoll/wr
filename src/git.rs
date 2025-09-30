@@ -1,7 +1,7 @@
 use regex::Regex;
 use std::{env, path::Path};
 
-use anyhow::{anyhow, Error};
+use crate::error::{IntoWrError, WrError};
 use git2::{Config, Cred, Remote, RemoteCallbacks, Repository};
 
 use crate::{DEVELOP_BRANCH, MASTER_BRANCH};
@@ -22,7 +22,7 @@ pub fn ref_by_tag(tag: &str) -> String {
 }
 
 /// Fetch credentials from the ssh-agent
-pub fn create_remote_callback() -> Result<RemoteCallbacks<'static>, Error> {
+pub fn create_remote_callback() -> Result<RemoteCallbacks<'static>, WrError> {
     let mut callback = RemoteCallbacks::new();
     callback.credentials(|_url, username_from_url, _allowed_types| {
         Cred::ssh_key_from_agent(username_from_url.unwrap())
@@ -94,12 +94,12 @@ pub fn get_project_name() -> String {
 }
 
 /// Get an instance of the git repository in the current directory
-pub fn get_repository() -> Result<Repository, Error> {
+pub fn get_repository() -> Result<Repository, WrError> {
     debug!("Try to load the current repository.");
     let current_dir = env::current_dir().unwrap();
     let repository = match Repository::open(current_dir) {
         Ok(repo) => repo,
-        Err(_) => return Err(anyhow!("Please launch wr in a git repository.")),
+        Err(_) => return Err(WrError::NotInGitRepository),
     };
     debug!("Found git repository.");
 
@@ -107,9 +107,9 @@ pub fn get_repository() -> Result<Repository, Error> {
 }
 
 /// Get a Remote instance from the current repository
-pub fn get_remote(repository: &Repository) -> Result<Remote<'_>, Error> {
+pub fn get_remote(repository: &Repository) -> Result<Remote<'_>, WrError> {
     debug!("Try to find the remote for current repository.");
-    let remote = repository.find_remote(ORIGIN_REMOTE)?;
+    let remote = repository.find_remote(ORIGIN_REMOTE).with_git_context()?;
     debug!("Found git repository's remote.");
 
     Ok(remote)
@@ -270,9 +270,7 @@ mod tests {
 
             assert!(result.is_err());
             if let Err(e) = result {
-                assert!(e
-                    .to_string()
-                    .contains("Please launch wr in a git repository"));
+                assert!(e.to_string().contains("Not in a git repository"));
             }
         }
 

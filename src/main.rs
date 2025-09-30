@@ -1,7 +1,5 @@
 use clap::Parser;
 
-use anyhow::{anyhow, Error};
-
 #[macro_use]
 extern crate log;
 extern crate simplelog;
@@ -13,7 +11,6 @@ use indicatif::HumanDuration;
 use simplelog::*;
 
 use std::env;
-use std::process;
 use std::time::Instant;
 
 use gitlab::Gitlab;
@@ -37,6 +34,9 @@ use release::Release;
 use crate::git::{
     get_gitflow_branch_name, get_gitlab_host, get_gitlab_token, get_project_name, get_repository,
 };
+
+mod error;
+use error::WrError;
 
 mod git;
 mod repository_status;
@@ -76,7 +76,7 @@ struct Cli {
     semver_type: SemverType,
 }
 
-fn app() -> Result<(), Error> {
+fn app() -> Result<(), WrError> {
     let matches = Cli::parse();
 
     // Get the logger filter level
@@ -132,17 +132,13 @@ fn app() -> Result<(), Error> {
     info!("[Setup] {semver_type} semver type was found from the arguments.");
 
     info!("[Setup] Login into Gitlab instance \"{}\".", *GITLAB_HOST);
-    let gitlab = match Gitlab::new(&*GITLAB_HOST, &*GITLAB_TOKEN) {
-        Ok(client) => client,
-        Err(e) => {
-            return Err(anyhow!(
-                "Failed to connect to Gitlab instance \"{}\", with token \"{}\" ({:?})",
-                *GITLAB_HOST,
-                *GITLAB_TOKEN,
-                e
-            ))
+    let gitlab = Gitlab::new(&*GITLAB_HOST, &*GITLAB_TOKEN).map_err(|e| {
+        WrError::GitlabConnectionFailed {
+            host: GITLAB_HOST.clone(),
+            token: GITLAB_TOKEN.clone(),
+            source: Box::new(e),
         }
-    };
+    })?;
 
     let release = Release {
         gitlab,
@@ -171,17 +167,14 @@ fn app() -> Result<(), Error> {
     Ok(())
 }
 
-fn main() {
+fn main() -> miette::Result<()> {
     let started = Instant::now();
 
-    process::exit(match app() {
-        Ok(_) => {
-            info!("Done in {}.", HumanDuration(started.elapsed()));
-            0
-        }
-        Err(err) => {
-            error!("{err}");
-            1
-        }
-    });
+    // Convert our WrError to miette::Report for proper formatting
+    if let Err(err) = app() {
+        return Err(miette::Report::new(err));
+    }
+
+    info!("Done in {}.", HumanDuration(started.elapsed()));
+    Ok(())
 }
