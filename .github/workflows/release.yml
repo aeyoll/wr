@@ -31,8 +31,17 @@ jobs:
             os: macos-latest
           - target: x86_64-apple-darwin
             os: macos-latest
+          - target: x86_64-pc-windows-msvc
+            os: windows-latest
+          - target: aarch64-pc-windows-msvc
+            os: windows-latest
     runs-on: ${{ matrix.os }}
     steps:
+      - name: Set Perl environment variables
+        if: runner.os == 'Windows'
+        run: |
+          echo "PERL=$((where.exe perl)[0])" | Out-File -FilePath $env:GITHUB_ENV -Append -Encoding utf8
+          echo "OPENSSL_SRC_PERL=$((where.exe perl)[0])" | Out-File -FilePath $env:GITHUB_ENV -Append -Encoding utf8
       - uses: actions/checkout@v3
       - name: Install cross-compilation tools
         uses: taiki-e/setup-cross-toolchain-action@v1
@@ -44,11 +53,15 @@ jobs:
           sudo apt-get update
           sudo apt-get install libssl-dev
         if: matrix.os == 'ubuntu-latest'
+      - name: Install dependencies (windows)
+        run: |
+          choco install openssl --no-progress
+        if: matrix.os == 'windows-latest'
       - uses: taiki-e/upload-rust-binary-action@v1
         with:
           bin: wr
           tar: unix
-          zip: none
+          zip: windows
           target: ${{ matrix.target }}
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
