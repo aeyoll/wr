@@ -2,6 +2,24 @@
 All notable changes to this project will be documented in this file. See [conventional commits](https://www.conventionalcommits.org/) for commit guidelines.
 
 - - -
+## v0.1.20 - 2026-01-06
+#### Bug Fixes
+- lint mismatched lifetime syntax - (aca8eb7) - *aeyoll*
+#### Documentation
+- update env variable documentation for the install script - (00ad3a8) - *aeyoll*
+#### Build system
+- (**deps**) bump dependencies - (00d0b58) - *aeyoll*
+- (**deps**) bump slab from 0.4.10 to 0.4.11 (#32) - (2f5863b) - dependabot[bot]
+#### Continuous Integration
+- add x86_64-pc-windows-msvc and aarch64-pc-windows-msvc targets - (ddbe198) - *aeyoll*
+- use taiji-e/setup-cross-toolchain-action - (164495a) - *aeyoll*
+#### Miscellaneous Chores
+- update the install script to allow overriding the target - (1c20906) - *aeyoll*
+#### Style
+- (**clippy**) update interpolation syntax - (704eb11) - *aeyoll*
+
+- - -
+
 ## v0.1.19 - 2025-07-28
 #### Build system
 - **(deps)** bump dependencies - (b4708d1) - *aeyoll*
