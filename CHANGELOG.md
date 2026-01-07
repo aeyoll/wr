@@ -2,6 +2,14 @@
 All notable changes to this project will be documented in this file. See [conventional commits](https://www.conventionalcommits.org/) for commit guidelines.
 
 - - -
+## v0.1.21 - 2026-01-07
+#### Bug Fixes
+- only push the latest tag - (0d8b523) - *aeyoll*
+#### Miscellaneous Chores
+- make the install script compatible with windows - (4922cc7) - *aeyoll*
+
+- - -
+
 ## v0.1.20 - 2026-01-06
 #### Bug Fixes
 - lint mismatched lifetime syntax - (aca8eb7) - *aeyoll*
