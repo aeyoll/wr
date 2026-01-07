@@ -160,15 +160,10 @@ impl Release<'_> {
         let branches_refs = get_gitflow_branches_refs();
         remote.push(&branches_refs, Some(&mut push_options))?;
 
-        // Push all tags
-        let tag_refs: Vec<String> = self
-            .repository
-            .tag_names(None)
-            .unwrap()
-            .iter()
-            .filter_map(|tag| tag.map(git::ref_by_tag))
-            .collect();
-        remote.push(&tag_refs, Some(&mut push_options))?;
+        // Push only the current release tag
+        let current_tag = self.get_last_tag()?;
+        let tag_ref = git::ref_by_tag(&current_tag.to_string());
+        remote.push(&[tag_ref], Some(&mut push_options))?;
 
         Ok(())
     }
