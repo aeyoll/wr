@@ -10,7 +10,6 @@ use crate::{
 };
 
 const GIT_COMMAND: &str = "git";
-const WHICH_COMMAND: &str = "which";
 const GIT_FLOW_AVH_IDENTIFIER: &str = "AVH";
 const GITLAB_CI_FILE: &str = ".gitlab-ci.yml";
 
@@ -32,7 +31,7 @@ pub struct System<'a> {
 impl System<'_> {
     /// Test if git is installed
     fn check_git(&self) -> Result<(), Error> {
-        let output = cmd!(WHICH_COMMAND, GIT_COMMAND).stdout_capture().run()?;
+        let output = cmd!(GIT_COMMAND, "--version").stdout_capture().run()?;
 
         match output.status.code() {
             Some(0) => Ok(()),
@@ -246,7 +245,6 @@ mod tests {
         #[test]
         fn constants_have_expected_values() {
             assert_eq!(GIT_COMMAND, "git");
-            assert_eq!(WHICH_COMMAND, "which");
             assert_eq!(GIT_FLOW_AVH_IDENTIFIER, "AVH");
             assert_eq!(GITLAB_CI_FILE, ".gitlab-ci.yml");
         }
