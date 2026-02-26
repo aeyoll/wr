@@ -2,6 +2,19 @@
 All notable changes to this project will be documented in this file. See [conventional commits](https://www.conventionalcommits.org/) for commit guidelines.
 
 - - -
+## v0.1.22 - 2026-02-26
+#### Bug Fixes
+- remove some mismatched lifetimes in tests - (cae17d3) - *aeyoll*
+- update "check_git" method so it works on windows too - (2d0bfe4) - *aeyoll*
+#### Build system
+- (**deps**) bump dependencies - (49eec5a) - *aeyoll*
+- (**deps**) bump time from 0.3.46 to 0.3.47 (#35) - (bf2d046) - dependabot[bot]
+- (**deps**) bump git2 from 0.19.0 to 0.20.4 (#34) - (2a39e87) - dependabot[bot]
+- (**deps**) bump dependencies - (51a5ec7) - *aeyoll*
+- (**deps**) bump bytes from 1.10.1 to 1.11.1 (#33) - (f8efa60) - dependabot[bot]
+
+- - -
+
 ## v0.1.21 - 2026-01-07
 #### Bug Fixes
 - only push the latest tag - (0d8b523) - *aeyoll*
