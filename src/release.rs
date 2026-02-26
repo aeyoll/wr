@@ -387,7 +387,7 @@ mod tests {
         }
     }
 
-    fn create_test_release(repo: &Repository, env: Environment, semver: SemverType) -> TestRelease {
+    fn create_test_release(repo: &Repository, env: Environment, semver: SemverType) -> TestRelease<'_> {
         TestRelease {
             repository: repo,
             environment: env,

@@ -232,7 +232,7 @@ mod tests {
         (temp_dir, repo)
     }
 
-    fn create_system_with_repo(repo: &Repository, force: bool) -> System {
+    fn create_system_with_repo(repo: &Repository, force: bool) -> System<'_> {
         System {
             repository: repo,
             force,
