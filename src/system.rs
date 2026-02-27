@@ -176,10 +176,20 @@ impl System<'_> {
 
         let statuses = self.repository.statuses(Some(&mut opts))?;
 
-        match (statuses.is_empty()).then_some(0) {
-            Some(_) => Ok(()),
-            _ => Err(anyhow!(REPO_DIRTY_MSG)),
+        if statuses.is_empty() {
+            return Ok(());
         }
+
+        for entry in statuses.iter() {
+            let path = entry.path().unwrap_or("<unknown>");
+            debug!(
+                "Dirty file detected: {} (status: {:?})",
+                path,
+                entry.status()
+            );
+        }
+
+        Err(anyhow!(REPO_DIRTY_MSG))
     }
 
     /// Perform system checks
