@@ -2,6 +2,12 @@
 All notable changes to this project will be documented in this file. See [conventional commits](https://www.conventionalcommits.org/) for commit guidelines.
 
 - - -
+## v0.1.23 - 2026-02-27
+#### Bug Fixes
+- (**windows**) prevent false negatives on clean repositories - (509550f) - *aeyoll*
+
+- - -
+
 ## v0.1.22 - 2026-02-26
 #### Bug Fixes
 - remove some mismatched lifetimes in tests - (cae17d3) - *aeyoll*
