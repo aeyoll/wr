@@ -168,7 +168,11 @@ impl System<'_> {
     /// Test if repository is clean
     fn is_repository_clean(&self) -> Result<(), Error> {
         let mut opts = StatusOptions::new();
-        opts.include_untracked(true);
+        opts.include_untracked(true)
+            // Refresh the index against HEAD before computing statuses so that
+            // libgit2 applies repository settings (e.g. core.autocrlf on Windows)
+            // the same way `git status` would, preventing false "dirty" reports.
+            .update_index(true);
 
         let statuses = self.repository.statuses(Some(&mut opts))?;
 
