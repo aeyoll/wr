@@ -5,10 +5,10 @@ use git2::{Oid, Repository};
 use semver::Version;
 use std::path::Path;
 
-use crate::{release::Release, DEVELOP_BRANCH, MASTER_BRANCH};
+use crate::{release::Release, DEVELOP_BRANCH, MAIN_BRANCH};
 
 struct Snapshot {
-    master_oid: Oid,
+    main_oid: Oid,
     develop_oid: Oid,
     previous_branch: String,
     tag: String,
@@ -30,9 +30,9 @@ impl Hotfix<'_> {
             .find_reference(&format!("refs/heads/{branch}"))
             .with_context(|| format!("Branch {branch} not found"))?;
 
-        Ok(reference
+        reference
             .target()
-            .ok_or_else(|| anyhow!("Branch {branch} has no target"))?)
+            .ok_or_else(|| anyhow!("Branch {branch} has no target"))
     }
 
     fn current_branch(&self) -> Result<String, Error> {
@@ -44,7 +44,7 @@ impl Hotfix<'_> {
 
     fn snapshot(&self, tag: &str) -> Result<Snapshot, Error> {
         Ok(Snapshot {
-            master_oid: self.branch_oid(&MASTER_BRANCH)?,
+            main_oid: self.branch_oid(&MAIN_BRANCH)?,
             develop_oid: self.branch_oid(&DEVELOP_BRANCH)?,
             previous_branch: self.current_branch()?,
             tag: tag.to_string(),
@@ -61,13 +61,13 @@ impl Hotfix<'_> {
         Ok(())
     }
 
-    /// Restore local master/develop/tag/hotfix branch to pre-hotfix state.
+    /// Restore local main/develop/tag/hotfix branch to pre-hotfix state.
     fn rollback(&self, snapshot: &Snapshot) {
         let workdir = self
             .repository
             .workdir()
             .expect("repository has no workdir");
-        rollback_local(snapshot, &MASTER_BRANCH, &DEVELOP_BRANCH, workdir);
+        rollback_local(snapshot, &MAIN_BRANCH, &DEVELOP_BRANCH, workdir);
     }
 
     fn create_inner(&self, tag: &str) -> Result<(), Error> {
@@ -133,7 +133,7 @@ impl Hotfix<'_> {
     }
 }
 
-fn rollback_local(snapshot: &Snapshot, master: &str, develop: &str, workdir: &Path) {
+fn rollback_local(snapshot: &Snapshot, main: &str, develop: &str, workdir: &Path) {
     warn!("[Hotfix] Rolling back local changes.");
 
     let _ = cmd!("git", "cherry-pick", "--abort")
@@ -163,17 +163,23 @@ fn rollback_local(snapshot: &Snapshot, master: &str, develop: &str, workdir: &Pa
         .stderr_capture()
         .run();
 
-    let _ = cmd!("git", "branch", "-f", master, snapshot.master_oid.to_string())
+    let _ = cmd!("git", "branch", "-f", main, snapshot.main_oid.to_string())
         .dir(workdir)
         .stdout_capture()
         .stderr_capture()
         .run();
 
-    let _ = cmd!("git", "branch", "-f", develop, snapshot.develop_oid.to_string())
-        .dir(workdir)
-        .stdout_capture()
-        .stderr_capture()
-        .run();
+    let _ = cmd!(
+        "git",
+        "branch",
+        "-f",
+        develop,
+        snapshot.develop_oid.to_string()
+    )
+    .dir(workdir)
+    .stdout_capture()
+    .stderr_capture()
+    .run();
 
     let _ = cmd!("git", "checkout", &snapshot.previous_branch)
         .dir(workdir)
@@ -204,13 +210,13 @@ mod tests {
                 .unwrap()
         };
 
-        // Rename default branch to master for git-flow-like layout in tests.
+        // Rename default branch to main for git-flow-like layout in tests.
         let default_branch = {
             let head = repo.head().unwrap();
             head.shorthand().unwrap().to_string()
         };
-        if default_branch != "master" {
-            repo.branch("master", &repo.find_commit(oid).unwrap(), true)
+        if default_branch != "main" {
+            repo.branch("main", &repo.find_commit(oid).unwrap(), true)
                 .unwrap();
         }
         repo.branch("develop", &repo.find_commit(oid).unwrap(), true)
@@ -257,10 +263,7 @@ mod tests {
 
         let result = hotfix.validate_commits();
         assert!(result.is_err());
-        assert!(result
-            .unwrap_err()
-            .to_string()
-            .contains("not found"));
+        assert!(result.unwrap_err().to_string().contains("not found"));
     }
 
     #[test]
@@ -280,8 +283,8 @@ mod tests {
         let (temp_dir, repo, _) = create_repo_with_branches();
         let workdir = temp_dir.path();
 
-        let master_oid = repo
-            .find_reference("refs/heads/master")
+        let main_oid = repo
+            .find_reference("refs/heads/main")
             .unwrap()
             .target()
             .unwrap();
@@ -292,9 +295,9 @@ mod tests {
             .unwrap();
 
         let snapshot = Snapshot {
-            master_oid,
+            main_oid,
             develop_oid,
-            previous_branch: "master".to_string(),
+            previous_branch: "main".to_string(),
             tag: "9.9.9".to_string(),
         };
 
@@ -302,33 +305,27 @@ mod tests {
         let sig = Signature::now("Test User", "test@example.com").unwrap();
         let develop_commit = repo.find_commit(develop_oid).unwrap();
         repo.branch("hotfix/9.9.9", &develop_commit, true).unwrap();
-        repo.tag(
-            "9.9.9",
-            develop_commit.as_object(),
-            &sig,
-            "9.9.9",
-            false,
-        )
-        .unwrap();
+        repo.tag("9.9.9", develop_commit.as_object(), &sig, "9.9.9", false)
+            .unwrap();
 
-        // Checkout master so branch -D can delete the hotfix branch.
-        cmd!("git", "checkout", "master")
+        // Checkout main so branch -D can delete the hotfix branch.
+        cmd!("git", "checkout", "main")
             .dir(workdir)
             .stdout_capture()
             .stderr_capture()
             .run()
             .unwrap();
 
-        rollback_local(&snapshot, "master", "develop", workdir);
+        rollback_local(&snapshot, "main", "develop", workdir);
 
         assert!(repo.find_reference("refs/heads/hotfix/9.9.9").is_err());
         assert!(repo.find_reference("refs/tags/9.9.9").is_err());
         assert_eq!(
-            repo.find_reference("refs/heads/master")
+            repo.find_reference("refs/heads/main")
                 .unwrap()
                 .target()
                 .unwrap(),
-            master_oid
+            main_oid
         );
         assert_eq!(
             repo.find_reference("refs/heads/develop")

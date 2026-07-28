@@ -6,7 +6,7 @@ use std::{env, path::Path};
 use crate::repository_status::RepositoryStatus;
 use crate::{
     git::{self, get_gitflow_branches_refs, get_remote},
-    DEVELOP_BRANCH, MASTER_BRANCH,
+    DEVELOP_BRANCH, MAIN_BRANCH,
 };
 
 const GIT_COMMAND: &str = "git";
@@ -220,7 +220,7 @@ impl System<'_> {
         self.is_git_flow_initialized()?;
 
         debug!("Checking if upstreams are defined.");
-        self.is_upstream_branch_defined(&MASTER_BRANCH)?;
+        self.is_upstream_branch_defined(&MAIN_BRANCH)?;
         self.is_upstream_branch_defined(&DEVELOP_BRANCH)?;
 
         debug!("Checking for .gitlab-ci.yml.");
@@ -385,7 +385,7 @@ mod tests {
             let (_temp_dir, repo) = create_repo_with_commit();
             let system = create_system_with_repo(&repo, false);
 
-            // Should be on main/master by default after first commit
+            // Should be on main/main by default after first commit
             let head = repo.head().unwrap();
             let branch_name = head.shorthand().unwrap();
 

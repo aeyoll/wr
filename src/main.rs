@@ -45,11 +45,11 @@ mod git;
 mod repository_status;
 
 const DEVELOP: &str = "develop";
-const MASTER: &str = "master";
+const MAIN: &str = "main";
 
 lazy_static! {
     static ref DEVELOP_BRANCH: String = get_gitflow_branch_name(DEVELOP);
-    static ref MASTER_BRANCH: String = get_gitflow_branch_name(MASTER);
+    static ref MAIN_BRANCH: String = get_gitflow_branch_name(MAIN);
     static ref PROJECT_NAME: String = get_project_name();
     static ref GITLAB_HOST: String = get_gitlab_host();
     static ref GITLAB_TOKEN: String = get_gitlab_token();

@@ -1,4 +1,4 @@
-use crate::{DEVELOP_BRANCH, MASTER_BRANCH};
+use crate::{DEVELOP_BRANCH, MAIN_BRANCH};
 use std::fmt;
 use std::str::FromStr;
 
@@ -24,7 +24,7 @@ impl Environment {
     /// Get the pipeline ref for the environment
     pub fn get_pipeline_ref(&self) -> &str {
         match self {
-            Environment::Production => &MASTER_BRANCH,
+            Environment::Production => &MAIN_BRANCH,
             Environment::Staging => &DEVELOP_BRANCH,
         }
     }

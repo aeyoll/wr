@@ -84,7 +84,7 @@ ARGS:
     <COMMIT>...    Commit hashes to cherry-pick onto the hotfix, in order
 ```
 
-Creates a git-flow hotfix named after the next patch tag, cherry-picks the given commits, finishes, and pushes master, develop, and the tag. On failure before push, local master/develop/tag/hotfix branch are rolled back.
+Creates a git-flow hotfix named after the next patch tag, cherry-picks the given commits, finishes, and pushes main, develop, and the tag. On failure before push, local main/develop/tag/hotfix branch are rolled back.
 
 Examples:
 ---

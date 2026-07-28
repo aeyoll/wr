@@ -4,7 +4,7 @@ use std::{env, path::Path};
 use anyhow::{anyhow, Error};
 use git2::{Config, Cred, Remote, RemoteCallbacks, Repository};
 
-use crate::{DEVELOP_BRANCH, MASTER_BRANCH};
+use crate::{DEVELOP_BRANCH, MAIN_BRANCH};
 
 const ORIGIN_REMOTE: &str = "origin";
 const DEFAULT_GITLAB_HOST: &str = "gitlab.com";
@@ -58,7 +58,7 @@ pub fn get_gitlab_token() -> String {
 /// Get the gitflow branch name
 pub fn get_gitflow_branch_name(branch: &str) -> String {
     let config = get_config();
-    let config_path = format!("gitflow.branch.{}", &branch);
+    let config_path = format!("gitflow.branch.{}", branch);
     config.get_string(&config_path).unwrap()
 }
 
@@ -117,10 +117,7 @@ pub fn get_remote(repository: &Repository) -> Result<Remote<'_>, Error> {
 
 /// Get the gitflow branches refs
 pub fn get_gitflow_branches_refs() -> [String; 2] {
-    [
-        ref_by_branch(&MASTER_BRANCH),
-        ref_by_branch(&DEVELOP_BRANCH),
-    ]
+    [ref_by_branch(&MAIN_BRANCH), ref_by_branch(&DEVELOP_BRANCH)]
 }
 
 #[cfg(test)]

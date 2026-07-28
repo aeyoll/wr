@@ -156,7 +156,7 @@ impl Release<'_> {
         let mut push_options = self.get_push_options();
         let mut remote = get_remote(self.repository)?;
 
-        // Push master and develop branches
+        // Push main and develop branches
         let branches_refs = get_gitflow_branches_refs();
         remote.push(&branches_refs, Some(&mut push_options))?;
 
