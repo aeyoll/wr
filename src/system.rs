@@ -192,8 +192,21 @@ impl System<'_> {
         Err(anyhow!(REPO_DIRTY_MSG))
     }
 
-    /// Perform system checks
-    pub fn system_check(&self) -> Result<(), Error> {
+    /// Fetch origin without enforcing NeedToPush.
+    fn fetch_origin(&self) -> Result<(), Error> {
+        let mut fetch_options = FetchOptions::new();
+        fetch_options.remote_callbacks(git::create_remote_callback().unwrap());
+        fetch_options.download_tags(git2::AutotagOption::All);
+
+        let mut remote = get_remote(self.repository)?;
+        let branches_refs = get_gitflow_branches_refs();
+        remote.download(&branches_refs, Some(&mut fetch_options))?;
+
+        Ok(())
+    }
+
+    /// Shared checks for release and hotfix.
+    fn system_check_common(&self) -> Result<(), Error> {
         debug!("Checking for git.");
         self.check_git()?;
 
@@ -206,18 +219,9 @@ impl System<'_> {
         debug!("Checking if the repository has git-flow initialized.");
         self.is_git_flow_initialized()?;
 
-        debug!(
-            "Checking if the repository is on the {} branch.",
-            DEVELOP_BRANCH.as_str()
-        );
-        self.is_on_branch(&DEVELOP_BRANCH)?;
-
         debug!("Checking if upstreams are defined.");
         self.is_upstream_branch_defined(&MASTER_BRANCH)?;
         self.is_upstream_branch_defined(&DEVELOP_BRANCH)?;
-
-        debug!("Checking if the repository is up-to-date with origin.");
-        self.get_repository_status()?;
 
         debug!("Checking for .gitlab-ci.yml.");
         if self.has_gitlab_ci() {
@@ -228,6 +232,32 @@ impl System<'_> {
 
         debug!("Checking if repository is clean.");
         self.is_repository_clean()?;
+
+        Ok(())
+    }
+
+    /// Perform system checks for release.
+    pub fn system_check(&self) -> Result<(), Error> {
+        self.system_check_common()?;
+
+        debug!(
+            "Checking if the repository is on the {} branch.",
+            DEVELOP_BRANCH.as_str()
+        );
+        self.is_on_branch(&DEVELOP_BRANCH)?;
+
+        debug!("Checking if the repository is up-to-date with origin.");
+        self.get_repository_status()?;
+
+        Ok(())
+    }
+
+    /// Perform system checks for hotfix (no develop / NeedToPush requirement).
+    pub fn hotfix_system_check(&self) -> Result<(), Error> {
+        self.system_check_common()?;
+
+        debug!("Fetching origin before hotfix.");
+        self.fetch_origin()?;
 
         Ok(())
     }

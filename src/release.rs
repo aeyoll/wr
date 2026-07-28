@@ -35,7 +35,7 @@ pub struct Release<'a> {
 
 impl Release<'_> {
     /// Fetch the latest tag from a git repository
-    fn get_last_tag(&self) -> Result<Version, Error> {
+    pub fn get_last_tag(&self) -> Result<Version, Error> {
         let tags = self.repository.tag_names(None).unwrap();
 
         let latest_tag = tags
@@ -50,7 +50,7 @@ impl Release<'_> {
     }
 
     /// Compute the next tag from the existing tag
-    fn get_next_tag(&self) -> Result<Version, Error> {
+    pub fn get_next_tag(&self) -> Result<Version, Error> {
         let last_tag = self.get_last_tag();
 
         let next_tag: Version = match last_tag {

@@ -34,6 +34,9 @@ use semver_type::SemverType;
 mod release;
 use release::Release;
 
+mod hotfix;
+use hotfix::Hotfix;
+
 use crate::git::{
     get_gitflow_branch_name, get_gitlab_host, get_gitlab_token, get_project_name, get_repository,
 };
@@ -63,6 +66,9 @@ struct Cli {
 enum Commands {
     /// Create and optionally deploy a release
     Release(ReleaseArgs),
+
+    /// Create and optionally deploy a hotfix from commit hashes
+    Hotfix(HotfixArgs),
 }
 
 #[derive(Parser)]
@@ -88,26 +94,37 @@ struct ReleaseArgs {
     semver_type: SemverType,
 }
 
-fn app() -> Result<(), Error> {
-    let Cli {
-        command: Commands::Release(matches),
-    } = Cli::parse();
+#[derive(Parser)]
+struct HotfixArgs {
+    /// Commit hashes to cherry-pick onto the hotfix, in order
+    #[clap(required = true)]
+    commits: Vec<String>,
 
-    // Get the logger filter level
-    let level = if matches.debug {
+    /// Launch a deploy job after the hotfix
+    #[clap(long, action)]
+    deploy: bool,
+
+    /// Print additional debug information
+    #[clap(short, long, action)]
+    debug: bool,
+
+    /// Unused for hotfix status checks; kept for CLI consistency with release
+    #[clap(short, long, action)]
+    force: bool,
+}
+
+fn init_logging(debug: bool) {
+    let level = if debug {
         LevelFilter::Debug
     } else {
         LevelFilter::Info
     };
-
-    let force = matches.force;
 
     let mut log_stdout_config_builder = ConfigBuilder::default();
     log_stdout_config_builder
         .set_time_offset_to_local()
         .unwrap();
 
-    // Define the logger
     TermLogger::init(
         level,
         log_stdout_config_builder.build(),
@@ -115,48 +132,62 @@ fn app() -> Result<(), Error> {
         ColorChoice::Auto,
     )
     .unwrap();
+}
 
-    // Set some env variables
+fn setup_env() {
     env::set_var("LANG", "en_US.UTF-8");
     env::set_var("GIT_MERGE_AUTOEDIT", "no");
+}
 
-    // Init
+fn connect_gitlab() -> Result<Gitlab, Error> {
+    info!("[Setup] Login into Gitlab instance \"{}\".", *GITLAB_HOST);
+    Gitlab::new(&*GITLAB_HOST, &*GITLAB_TOKEN).map_err(|e| {
+        anyhow!(
+            "Failed to connect to Gitlab instance \"{}\", with token \"{}\" ({:?})",
+            *GITLAB_HOST,
+            *GITLAB_TOKEN,
+            e
+        )
+    })
+}
+
+fn maybe_deploy(release: &Release<'_>, system: &System<'_>, deploy: bool) -> Result<(), Error> {
+    if !deploy {
+        return Ok(());
+    }
+
+    if system.has_gitlab_ci() {
+        debug!("\"deploy\" flag was found, trying to play the \"deploy\" job.");
+        release.deploy()?;
+    } else {
+        warn!("\"deploy\" flag was found, but the repository has no \".gitlab-ci.yml\" file, impossible to deploy.")
+    }
+
+    Ok(())
+}
+
+fn run_release(matches: ReleaseArgs) -> Result<(), Error> {
+    init_logging(matches.debug);
+    setup_env();
+
     info!("Welcome to wr.");
 
-    // Get a git2 "Repository" struct
     let repository = get_repository()?;
 
-    // Run some system checks
-    // This will ensure that everything is in place to do the deployment
     let s = System {
         repository: &repository,
-        force,
+        force: matches.force,
     };
     info!("[Setup] Performing system checks.");
     s.system_check()?;
 
-    // Get environment
-    debug!("Getting the environment name from the arguments.");
     let environment: Environment = matches.environment;
     info!("[Setup] {environment} environment was found from the arguments.");
 
-    // Get semver type
-    debug!("Getting the semver type from the arguments.");
     let semver_type: SemverType = matches.semver_type;
     info!("[Setup] {semver_type} semver type was found from the arguments.");
 
-    info!("[Setup] Login into Gitlab instance \"{}\".", *GITLAB_HOST);
-    let gitlab = match Gitlab::new(&*GITLAB_HOST, &*GITLAB_TOKEN) {
-        Ok(client) => client,
-        Err(e) => {
-            return Err(anyhow!(
-                "Failed to connect to Gitlab instance \"{}\", with token \"{}\" ({:?})",
-                *GITLAB_HOST,
-                *GITLAB_TOKEN,
-                e
-            ))
-        }
-    };
+    let gitlab = connect_gitlab()?;
 
     let release = Release {
         gitlab,
@@ -173,16 +204,58 @@ fn app() -> Result<(), Error> {
     release.push()?;
     info!("[Release] {environment} release has been pushed to the remote repository.");
 
-    if matches.deploy {
-        if s.has_gitlab_ci() {
-            debug!("\"deploy\" flag was found, trying to play the \"deploy\" job.");
-            release.deploy()?;
-        } else {
-            warn!("\"deploy\" flag was found, but the repository has no \".gitlab-ci.yml\" file, impossible to deploy.")
-        }
-    }
+    maybe_deploy(&release, &s, matches.deploy)?;
 
     Ok(())
+}
+
+fn run_hotfix(matches: HotfixArgs) -> Result<(), Error> {
+    init_logging(matches.debug);
+    setup_env();
+
+    info!("Welcome to wr.");
+
+    let repository = get_repository()?;
+
+    let s = System {
+        repository: &repository,
+        force: matches.force,
+    };
+    info!("[Setup] Performing system checks.");
+    s.hotfix_system_check()?;
+
+    let gitlab = connect_gitlab()?;
+
+    let release = Release {
+        gitlab,
+        repository: &repository,
+        environment: Environment::Production,
+        semver_type: SemverType::Patch,
+    };
+
+    let hotfix = Hotfix {
+        repository: &repository,
+        commits: &matches.commits,
+    };
+
+    debug!("[Hotfix] Creating a new production hotfix.");
+    hotfix.create(&release)?;
+    info!("[Hotfix] A new production hotfix has been created.");
+
+    debug!("[Hotfix] Pushing the hotfix to the remote repository.");
+    release.push()?;
+    info!("[Hotfix] Hotfix has been pushed to the remote repository.");
+
+    maybe_deploy(&release, &s, matches.deploy)?;
+
+    Ok(())
+}
+
+fn app() -> Result<(), Error> {
+    match Cli::parse().command {
+        Commands::Release(matches) => run_release(matches),
+        Commands::Hotfix(matches) => run_hotfix(matches),
+    }
 }
 
 fn main() {

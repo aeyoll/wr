@@ -18,7 +18,7 @@ While git-flow is not trendy _at all_, it still has advantages over GitHub flow 
 - a strong usage of tags, providing an easy rollback mechanism
 - a good convention for branch names
 
-This tool is only intended to help to create and deploy new releases. Handling gitflow's features, hotfixes and bugfixes are (and will) not be covered.
+This tool helps create and deploy releases and hotfixes. git-flow features and bugfixes are not covered.
 
 Installation
 ---
@@ -47,6 +47,8 @@ export GITLAB_TOKEN=glpat-012345678012345678 # GitLab access token with "api" ri
 Usage
 ---
 
+### Release
+
 ```
 USAGE:
     wr release [FLAGS] [OPTIONS]
@@ -65,6 +67,25 @@ OPTIONS:
                                        "Minor", "Major")
 ```
 
+### Hotfix
+
+```
+USAGE:
+    wr hotfix [FLAGS] <COMMIT>...
+
+FLAGS:
+        --debug      Print additional debug information
+    -d, --deploy     Launch a deploy job after the hotfix
+    -f, --force      Kept for consistency with release
+    -h, --help       Prints help information
+    -V, --version    Prints version information
+
+ARGS:
+    <COMMIT>...    Commit hashes to cherry-pick onto the hotfix, in order
+```
+
+Creates a git-flow hotfix named after the next patch tag, cherry-picks the given commits, finishes, and pushes master, develop, and the tag. On failure before push, local master/develop/tag/hotfix branch are rolled back.
+
 Examples:
 ---
 
@@ -80,4 +101,10 @@ Create a production release, with logger level set at "debug", incrementing to t
 wr release --semver_type=minor --debug
 wr release --environment=production --semver_type=minor --debug
 # Those two lines are equivalent
+```
+
+Create a production hotfix from one or more commits and deploy it:
+
+```sh
+wr hotfix abc1234 def5678 --deploy
 ```
