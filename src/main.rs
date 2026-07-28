@@ -1,4 +1,4 @@
-use clap::Parser;
+use clap::{Parser, Subcommand};
 
 use anyhow::{anyhow, Error};
 
@@ -55,6 +55,18 @@ lazy_static! {
 #[derive(Parser)]
 #[clap(version, about, long_about = None)]
 struct Cli {
+    #[clap(subcommand)]
+    command: Commands,
+}
+
+#[derive(Subcommand)]
+enum Commands {
+    /// Create and optionally deploy a release
+    Release(ReleaseArgs),
+}
+
+#[derive(Parser)]
+struct ReleaseArgs {
     /// Launch a deploy job after the release
     #[clap(long, action)]
     deploy: bool,
@@ -77,7 +89,9 @@ struct Cli {
 }
 
 fn app() -> Result<(), Error> {
-    let matches = Cli::parse();
+    let Cli {
+        command: Commands::Release(matches),
+    } = Cli::parse();
 
     // Get the logger filter level
     let level = if matches.debug {
