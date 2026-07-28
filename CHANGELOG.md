@@ -2,6 +2,22 @@
 All notable changes to this project will be documented in this file. See [conventional commits](https://www.conventionalcommits.org/) for commit guidelines.
 
 - - -
+## v0.1.24 - 2026-07-28
+#### Bug Fixes
+- display dirty files in debug when repository is not clean - (742f5ad) - *aeyoll*
+#### Build system
+- (**deps**) bump dependencies - (1f648d6) - *aeyoll*
+- (**deps**) bump quinn-proto from 0.11.14 to 0.11.16 (#44) - (3ecec69) - dependabot[bot], *dependabot[bot]*
+- (**deps**) bump openssl from 0.10.79 to 0.10.80 (#43) - (afdd45e) - dependabot[bot], *dependabot[bot]*
+- (**deps**) bump openssl from 0.10.78 to 0.10.79 (#42) - (cb65102) - dependabot[bot], *dependabot[bot]*
+- (**deps**) bump rustls-webpki from 0.103.11 to 0.103.13 (#41) - (4d951af) - dependabot[bot], *dependabot[bot]*
+- (**deps**) bump openssl from 0.10.75 to 0.10.78 (#40) - (ca83cdc) - dependabot[bot], *dependabot[bot]*
+- (**deps**) bump rustls-webpki from 0.103.9 to 0.103.11 (#39) - (2b1c1fc) - dependabot[bot], *dependabot[bot]*
+- (**deps**) bump quinn-proto from 0.11.13 to 0.11.14 (#36) - (81ecb7c) - dependabot[bot], *dependabot[bot]*
+- (**deps**) bump rand from 0.9.2 to 0.9.4 (#38) - (d9909a1) - dependabot[bot], *dependabot[bot]*
+
+- - -
+
 ## v0.1.23 - 2026-02-27
 #### Bug Fixes
 - (**windows**) prevent false negatives on clean repositories - (509550f) - *aeyoll*
