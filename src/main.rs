@@ -1,4 +1,4 @@
-use clap::{Parser, Subcommand};
+use clap::{Args, Parser, Subcommand};
 
 use anyhow::{anyhow, Error};
 
@@ -57,9 +57,14 @@ lazy_static! {
 
 #[derive(Parser)]
 #[clap(version, about, long_about = None)]
+#[clap(args_conflicts_with_subcommands = true)]
 struct Cli {
     #[clap(subcommand)]
-    command: Commands,
+    command: Option<Commands>,
+
+    /// Legacy: `wr [flags]` with no subcommand means release.
+    #[clap(flatten)]
+    release: ReleaseArgs,
 }
 
 #[derive(Subcommand)]
@@ -71,7 +76,7 @@ enum Commands {
     Hotfix(HotfixArgs),
 }
 
-#[derive(Parser)]
+#[derive(Args)]
 struct ReleaseArgs {
     /// Launch a deploy job after the release
     #[clap(long, action)]
@@ -252,9 +257,11 @@ fn run_hotfix(matches: HotfixArgs) -> Result<(), Error> {
 }
 
 fn app() -> Result<(), Error> {
-    match Cli::parse().command {
-        Commands::Release(matches) => run_release(matches),
-        Commands::Hotfix(matches) => run_hotfix(matches),
+    let cli = Cli::parse();
+    match cli.command {
+        Some(Commands::Release(matches)) => run_release(matches),
+        Some(Commands::Hotfix(matches)) => run_hotfix(matches),
+        None => run_release(cli.release),
     }
 }
 
@@ -271,4 +278,48 @@ fn main() {
             1
         }
     });
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn parse(args: &[&str]) -> Commands {
+        let cli = Cli::try_parse_from(args).expect("cli");
+        match cli.command {
+            Some(command) => command,
+            None => Commands::Release(cli.release),
+        }
+    }
+
+    #[test]
+    fn no_command_falls_back_to_release() {
+        match parse(&["wr"]) {
+            Commands::Release(args) => {
+                assert!(!args.deploy);
+                assert!(!args.force);
+            }
+            Commands::Hotfix(_) => panic!("expected release"),
+        }
+    }
+
+    #[test]
+    fn flags_without_command_fall_back_to_release() {
+        match parse(&["wr", "--deploy", "-f"]) {
+            Commands::Release(args) => {
+                assert!(args.deploy);
+                assert!(args.force);
+            }
+            Commands::Hotfix(_) => panic!("expected release"),
+        }
+    }
+
+    #[test]
+    fn explicit_release_and_hotfix_unchanged() {
+        assert!(matches!(parse(&["wr", "release"]), Commands::Release(_)));
+        match parse(&["wr", "hotfix", "abc"]) {
+            Commands::Hotfix(args) => assert_eq!(args.commits, ["abc"]),
+            Commands::Release(_) => panic!("expected hotfix"),
+        }
+    }
 }
