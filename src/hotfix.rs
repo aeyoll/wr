@@ -39,7 +39,7 @@ impl Hotfix<'_> {
         let head = self.repository.head()?;
         head.shorthand()
             .map(str::to_string)
-            .ok_or_else(|| anyhow!("Detached HEAD; checkout a branch first"))
+            .map_err(|_| anyhow!("Detached HEAD; checkout a branch first"))
     }
 
     fn snapshot(&self, tag: &str) -> Result<Snapshot, Error> {

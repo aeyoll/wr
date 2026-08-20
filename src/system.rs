@@ -93,7 +93,7 @@ impl System<'_> {
             }
             Err(e) => return Err(anyhow!(e)),
         };
-        let head = head.as_ref().and_then(|h| h.shorthand());
+        let head = head.as_ref().and_then(|h| h.shorthand().ok());
 
         match (head.unwrap() == branch_name).then_some(0) {
             Some(_) => Ok(()),

@@ -40,7 +40,7 @@ impl Release<'_> {
 
         let latest_tag = tags
             .iter()
-            .filter_map(|x| Version::parse(x.unwrap()).ok())
+            .filter_map(|x| x.ok().flatten().and_then(|s| Version::parse(s).ok()))
             .max_by(|x, y| x.cmp(y));
 
         match latest_tag {
@@ -349,7 +349,7 @@ mod tests {
 
             let latest_tag = tags
                 .iter()
-                .filter_map(|x| Version::parse(x.unwrap()).ok())
+                .filter_map(|x| x.ok().flatten().and_then(|s| Version::parse(s).ok()))
                 .max_by(|x, y| x.cmp(y));
 
             match latest_tag {
