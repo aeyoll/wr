@@ -66,29 +66,7 @@ mod tests {
     }
 
     #[test]
-    fn get_pipeline_ref_returns_correct_branches() {
-        // This test may fail if git-flow is not configured, so we'll make it more resilient
-        let result = std::panic::catch_unwind(|| {
-            (
-                Environment::Production.get_pipeline_ref(),
-                Environment::Staging.get_pipeline_ref(),
-            )
-        });
-
-        if let Ok((prod_ref, staging_ref)) = result {
-            // Should reference the global branch names
-            assert!(!prod_ref.is_empty());
-            assert!(!staging_ref.is_empty());
-            assert_ne!(prod_ref, staging_ref);
-        } else {
-            // If git-flow is not configured, test basic functionality
-            // Just verify the method exists and doesn't panic for basic cases
-            println!("Git-flow not configured, using fallback test");
-        }
-    }
-
-    #[test]
-    fn from_str_parses_correctly() {
+    fn from_str_parses_and_rejects() {
         assert_eq!(
             "Production".parse::<Environment>().unwrap(),
             Environment::Production
@@ -97,58 +75,16 @@ mod tests {
             "Staging".parse::<Environment>().unwrap(),
             Environment::Staging
         );
-    }
-
-    #[test]
-    fn from_str_fails_for_invalid_input() {
-        assert!("Invalid".parse::<Environment>().is_err());
-        assert!("production".parse::<Environment>().is_err()); // case sensitive
-        assert!("staging".parse::<Environment>().is_err()); // case sensitive
-        assert!("".parse::<Environment>().is_err());
-    }
-
-    #[test]
-    fn from_str_error_message() {
-        let error = "Invalid".parse::<Environment>().unwrap_err();
-        assert_eq!(error, "Unknown environment");
+        assert_eq!(
+            "Invalid".parse::<Environment>().unwrap_err(),
+            "Unknown environment"
+        );
+        assert!("production".parse::<Environment>().is_err());
     }
 
     #[test]
     fn display_formatting() {
         assert_eq!(format!("{}", Environment::Production), "Production");
         assert_eq!(format!("{}", Environment::Staging), "Staging");
-    }
-
-    #[test]
-    fn debug_formatting() {
-        assert_eq!(format!("{:?}", Environment::Production), "Production");
-        assert_eq!(format!("{:?}", Environment::Staging), "Staging");
-    }
-
-    #[test]
-    fn environment_equality() {
-        assert_eq!(Environment::Production, Environment::Production);
-        assert_eq!(Environment::Staging, Environment::Staging);
-        assert_ne!(Environment::Production, Environment::Staging);
-    }
-
-    #[test]
-    fn environment_clone() {
-        let env = Environment::Production;
-        let cloned = env.clone();
-        assert_eq!(env, cloned);
-    }
-
-    #[test]
-    fn environment_copy() {
-        let env = Environment::Production;
-        let copied = env; // Copy semantics
-        assert_eq!(env, copied);
-    }
-
-    #[test]
-    fn constants_are_correct() {
-        assert_eq!(DEPLOY_PROD_JOB, "deploy_prod");
-        assert_eq!(DEPLOY_STAGING_JOB, "deploy_staging");
     }
 }

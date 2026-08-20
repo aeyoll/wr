@@ -5,9 +5,8 @@ use std::time::Duration;
 use crate::{
     environment::Environment,
     git::{self, get_gitflow_branches_refs, get_remote},
-    job::Job,
-    pipeline::Pipeline,
-    pipeline::StatusState,
+    job::{find_playable_deploy_job, Job},
+    pipeline::{find_active_pipeline_id, Pipeline, StatusState},
     semver_type::SemverType,
 };
 use anyhow::{anyhow, Error};
@@ -26,6 +25,48 @@ use duct::cmd;
 
 use crate::{DEVELOP_BRANCH, GITLAB_HOST, PROJECT_NAME};
 
+/// Highest parseable semver tag in the repository.
+pub fn last_tag(repository: &Repository) -> Result<Version, Error> {
+    let tags = repository.tag_names(None).unwrap();
+
+    let latest_tag = tags
+        .iter()
+        .filter_map(|x| x.ok().flatten().and_then(|s| Version::parse(s).ok()))
+        .max_by(|x, y| x.cmp(y));
+
+    match latest_tag {
+        Some(version) => Ok(version),
+        None => Err(anyhow!("No tag found")),
+    }
+}
+
+/// Next version from `last_tag`, or `1.0.0` when none exist.
+pub fn next_tag(repository: &Repository, semver_type: SemverType) -> Result<Version, Error> {
+    let next: Version = match last_tag(repository) {
+        Ok(last) => {
+            let mut next = last;
+
+            match semver_type {
+                SemverType::Major => {
+                    next.major += 1;
+                    next.minor = 0;
+                    next.patch = 0;
+                }
+                SemverType::Minor => {
+                    next.minor += 1;
+                    next.patch = 0;
+                }
+                SemverType::Patch => next.patch += 1,
+            }
+
+            next
+        }
+        Err(_) => Version::new(1, 0, 0),
+    };
+
+    Ok(next)
+}
+
 pub struct Release<'a> {
     pub gitlab: Gitlab,
     pub repository: &'a Repository,
@@ -36,46 +77,12 @@ pub struct Release<'a> {
 impl Release<'_> {
     /// Fetch the latest tag from a git repository
     pub fn get_last_tag(&self) -> Result<Version, Error> {
-        let tags = self.repository.tag_names(None).unwrap();
-
-        let latest_tag = tags
-            .iter()
-            .filter_map(|x| x.ok().flatten().and_then(|s| Version::parse(s).ok()))
-            .max_by(|x, y| x.cmp(y));
-
-        match latest_tag {
-            Some(version) => Ok(version),
-            None => Err(anyhow!("No tag found")),
-        }
+        last_tag(self.repository)
     }
 
     /// Compute the next tag from the existing tag
     pub fn get_next_tag(&self) -> Result<Version, Error> {
-        let last_tag = self.get_last_tag();
-
-        let next_tag: Version = match last_tag {
-            Ok(last_tag) => {
-                let mut next_tag = last_tag;
-
-                match self.semver_type {
-                    SemverType::Major => {
-                        next_tag.major += 1;
-                        next_tag.minor = 0;
-                        next_tag.patch = 0;
-                    }
-                    SemverType::Minor => {
-                        next_tag.minor += 1;
-                        next_tag.patch = 0;
-                    }
-                    SemverType::Patch => next_tag.patch += 1,
-                }
-
-                next_tag
-            }
-            Err(_) => Version::new(1, 0, 0),
-        };
-
-        Ok(next_tag)
+        next_tag(self.repository, self.semver_type)
     }
 
     /// Push a branch to the remote
@@ -209,12 +216,8 @@ impl Release<'_> {
 
             let pipelines: Vec<Pipeline> = pipelines_endpoint.query(&self.gitlab)?;
 
-            // Find the first pipeline that matches our criteria directly
-            if let Some(last_pipeline) = pipelines
-                .into_iter()
-                .find(|pipeline| pipeline.status == "skipped" || pipeline.status == "running")
-            {
-                last_pipeline_id = last_pipeline.id;
+            if let Some(id) = find_active_pipeline_id(&pipelines) {
+                last_pipeline_id = id;
             }
 
             counter += 1;
@@ -247,13 +250,9 @@ impl Release<'_> {
 
             let deploy_job_name = self.environment.get_deploy_job_name();
 
-            let deploy_job = jobs.into_iter().find(|job| {
-                job.name.contains(deploy_job_name)
-                    && job.status != StatusState::Failed
-                    && job.status != StatusState::Success
-            });
-
-            if let Some(job) = deploy_job {
+            if let Some(job) = find_playable_deploy_job(&jobs, deploy_job_name) {
+                let job_id = job.id;
+                let job_name = job.name.clone();
                 // While the job has the "created" state, it means other jobs
                 // are pending before.
                 let mut job_status = job.status;
@@ -261,32 +260,32 @@ impl Release<'_> {
 
                 while job_status == StatusState::Created {
                     sleep(Duration::from_secs(1));
-                    let job: Job = self.get_job(job.id)?;
+                    let job: Job = self.get_job(job_id)?;
                     job_status = job.status;
                 }
 
                 // Trigger the deploy job
                 let play_job_endpoint = projects::jobs::PlayJob::builder()
                     .project(PROJECT_NAME.as_str())
-                    .job(job.id)
+                    .job(job_id)
                     .build()
                     .unwrap();
 
                 gitlab::api::ignore(play_job_endpoint).query(&self.gitlab)?;
 
-                info!("[Deploy] Playing \"{}\" job.", job.name);
+                info!("[Deploy] Playing \"{job_name}\" job.");
 
-                let mut job: Job = self.get_job(job.id)?;
+                let mut job: Job = self.get_job(job_id)?;
 
                 while job.status != StatusState::Failed && job.status != StatusState::Success {
                     sleep(Duration::from_secs(1));
-                    job = self.get_job(job.id)?;
+                    job = self.get_job(job_id)?;
                 }
 
                 if job.status == StatusState::Failed {
-                    error!("[Deploy] \"{}\" job failed", job.name);
+                    error!("[Deploy] \"{job_name}\" job failed");
                 } else if job.status == StatusState::Success {
-                    info!("[Deploy] \"{}\" job succeeded", job.name)
+                    info!("[Deploy] \"{job_name}\" job succeeded")
                 }
             }
         }
@@ -299,30 +298,37 @@ impl Release<'_> {
 mod tests {
     use super::*;
     use git2::{Repository, Signature};
+    use httpmock::Method::GET;
+    use httpmock::MockServer;
     use tempfile::TempDir;
+
+    fn mock_gitlab() -> (MockServer, Gitlab) {
+        let server = MockServer::start();
+        let _user = server.mock(|when, then| {
+            when.method(GET).path("/api/v4/user");
+            then.status(200).body("{}");
+        });
+        let host = format!("127.0.0.1:{}", server.port());
+        let gitlab = Gitlab::new_insecure(host, "token").expect("gitlab client");
+        (server, gitlab)
+    }
 
     fn create_test_repo_with_tags() -> (TempDir, Repository) {
         let temp_dir = TempDir::new().expect("Failed to create temp dir");
         let repo = Repository::init(temp_dir.path()).expect("Failed to init repo");
 
-        // Add a remote origin URL for testing
         repo.remote("origin", "git@gitlab.com:test/project.git")
             .expect("Failed to add remote");
 
-        // Create initial commit
         let sig = Signature::now("Test User", "test@example.com").unwrap();
-        let (_tree_id, commit_oid) = {
+        let commit_oid = {
             let mut index = repo.index().unwrap();
             let tree_id = index.write_tree().unwrap();
             let tree = repo.find_tree(tree_id).unwrap();
-
-            let commit_oid = repo
-                .commit(Some("HEAD"), &sig, &sig, "Initial commit", &tree, &[])
-                .unwrap();
-            (tree_id, commit_oid)
+            repo.commit(Some("HEAD"), &sig, &sig, "Initial commit", &tree, &[])
+                .unwrap()
         };
 
-        // Create some test tags
         {
             let commit = repo.find_commit(commit_oid).unwrap();
             repo.tag("1.0.0", commit.as_object(), &sig, "Version 1.0.0", false)
@@ -331,281 +337,69 @@ mod tests {
                 .unwrap();
             repo.tag("2.0.0", commit.as_object(), &sig, "Version 2.0.0", false)
                 .unwrap();
+            // Ignored by Version::parse — must not win over numeric tags.
+            repo.tag("v3.0.0", commit.as_object(), &sig, "prefixed", false)
+                .unwrap();
+            repo.tag("not-a-version", commit.as_object(), &sig, "junk", false)
+                .unwrap();
         }
 
         (temp_dir, repo)
     }
 
-    // For testing, we'll create a minimal version that doesn't require GitLab
-    struct TestRelease<'a> {
-        repository: &'a Repository,
-        environment: Environment,
-        semver_type: SemverType,
+    #[test]
+    fn get_last_tag_finds_highest_semver_ignoring_invalid() {
+        let (_temp_dir, repo) = create_test_repo_with_tags();
+        assert_eq!(last_tag(&repo).unwrap(), Version::new(2, 0, 0));
     }
 
-    impl<'a> TestRelease<'a> {
-        fn get_last_tag(&self) -> Result<Version, Error> {
-            let tags = self.repository.tag_names(None).unwrap();
-
-            let latest_tag = tags
-                .iter()
-                .filter_map(|x| x.ok().flatten().and_then(|s| Version::parse(s).ok()))
-                .max_by(|x, y| x.cmp(y));
-
-            match latest_tag {
-                Some(version) => Ok(version),
-                None => Err(anyhow!("No tag found")),
-            }
-        }
-
-        fn get_next_tag(&self) -> Result<Version, Error> {
-            let last_tag = self.get_last_tag();
-
-            let next_tag: Version = match last_tag {
-                Ok(last_tag) => {
-                    let mut next_tag = last_tag;
-
-                    match self.semver_type {
-                        SemverType::Major => {
-                            next_tag.major += 1;
-                            next_tag.minor = 0;
-                            next_tag.patch = 0;
-                        }
-                        SemverType::Minor => {
-                            next_tag.minor += 1;
-                            next_tag.patch = 0;
-                        }
-                        SemverType::Patch => next_tag.patch += 1,
-                    }
-
-                    next_tag
-                }
-                Err(_) => Version::new(1, 0, 0),
-            };
-
-            Ok(next_tag)
-        }
+    #[test]
+    fn get_last_tag_fails_with_no_tags() {
+        let temp_dir = TempDir::new().unwrap();
+        let repo = Repository::init(temp_dir.path()).unwrap();
+        assert!(last_tag(&repo)
+            .unwrap_err()
+            .to_string()
+            .contains("No tag found"));
     }
 
-    fn create_test_release(
-        repo: &Repository,
-        env: Environment,
-        semver: SemverType,
-    ) -> TestRelease<'_> {
-        TestRelease {
-            repository: repo,
-            environment: env,
-            semver_type: semver,
-        }
+    #[test]
+    fn get_next_tag_increments_by_semver_type() {
+        let (_temp_dir, repo) = create_test_repo_with_tags();
+        assert_eq!(
+            next_tag(&repo, SemverType::Patch).unwrap(),
+            Version::new(2, 0, 1)
+        );
+        assert_eq!(
+            next_tag(&repo, SemverType::Minor).unwrap(),
+            Version::new(2, 1, 0)
+        );
+        assert_eq!(
+            next_tag(&repo, SemverType::Major).unwrap(),
+            Version::new(3, 0, 0)
+        );
     }
 
-    mod version_tests {
-        use super::*;
-
-        #[test]
-        fn get_last_tag_finds_highest_version() {
-            let (_temp_dir, repo) = create_test_repo_with_tags();
-            let release = create_test_release(&repo, Environment::Production, SemverType::Patch);
-
-            let last_tag = release.get_last_tag().unwrap();
-            assert_eq!(last_tag, Version::new(2, 0, 0));
-        }
-
-        #[test]
-        fn get_last_tag_fails_with_no_tags() {
-            let temp_dir = TempDir::new().expect("Failed to create temp dir");
-            let repo = Repository::init(temp_dir.path()).expect("Failed to init repo");
-            let release = create_test_release(&repo, Environment::Production, SemverType::Patch);
-
-            let result = release.get_last_tag();
-            assert!(result.is_err());
-            assert!(result.unwrap_err().to_string().contains("No tag found"));
-        }
-
-        #[test]
-        fn get_next_tag_increments_patch() {
-            let (_temp_dir, repo) = create_test_repo_with_tags();
-            let release = create_test_release(&repo, Environment::Production, SemverType::Patch);
-
-            let next_tag = release.get_next_tag().unwrap();
-            assert_eq!(next_tag, Version::new(2, 0, 1)); // 2.0.0 -> 2.0.1
-        }
-
-        #[test]
-        fn get_next_tag_increments_minor() {
-            let (_temp_dir, repo) = create_test_repo_with_tags();
-            let release = create_test_release(&repo, Environment::Production, SemverType::Minor);
-
-            let next_tag = release.get_next_tag().unwrap();
-            assert_eq!(next_tag, Version::new(2, 1, 0)); // 2.0.0 -> 2.1.0
-        }
-
-        #[test]
-        fn get_next_tag_increments_major() {
-            let (_temp_dir, repo) = create_test_repo_with_tags();
-            let release = create_test_release(&repo, Environment::Production, SemverType::Major);
-
-            let next_tag = release.get_next_tag().unwrap();
-            assert_eq!(next_tag, Version::new(3, 0, 0)); // 2.0.0 -> 3.0.0
-        }
-
-        #[test]
-        fn get_next_tag_defaults_to_1_0_0_with_no_tags() {
-            let temp_dir = TempDir::new().expect("Failed to create temp dir");
-            let repo = Repository::init(temp_dir.path()).expect("Failed to init repo");
-            let release = create_test_release(&repo, Environment::Production, SemverType::Patch);
-
-            let next_tag = release.get_next_tag().unwrap();
-            assert_eq!(next_tag, Version::new(1, 0, 0));
-        }
-
-        #[test]
-        fn version_comparison_works_correctly() {
-            let versions = vec![
-                Version::new(1, 0, 0),
-                Version::new(1, 1, 0),
-                Version::new(2, 0, 0),
-                Version::new(1, 0, 1),
-            ];
-
-            let max_version = versions.iter().max().unwrap();
-            assert_eq!(*max_version, Version::new(2, 0, 0));
-        }
+    #[test]
+    fn get_next_tag_defaults_to_1_0_0_with_no_tags() {
+        let temp_dir = TempDir::new().unwrap();
+        let repo = Repository::init(temp_dir.path()).unwrap();
+        assert_eq!(
+            next_tag(&repo, SemverType::Patch).unwrap(),
+            Version::new(1, 0, 0)
+        );
     }
 
-    mod environment_behavior_tests {
-        use super::*;
-
-        #[test]
-        fn create_calls_production_release_for_production() {
-            let (_temp_dir, repo) = create_test_repo_with_tags();
-            let release = create_test_release(&repo, Environment::Production, SemverType::Patch);
-
-            // Note: This test would need mocking of the interactive prompt
-            // For now, we just test that the method exists and can be called
-            assert_eq!(release.environment, Environment::Production);
-        }
-
-        #[test]
-        fn create_succeeds_immediately_for_staging() {
-            let (_temp_dir, repo) = create_test_repo_with_tags();
-            let release = create_test_release(&repo, Environment::Staging, SemverType::Patch);
-
-            // For staging, we just test that the environment is correct
-            // The actual create() method requires GitLab integration
-            assert_eq!(release.environment, Environment::Staging);
-        }
-
-        #[test]
-        fn push_calls_correct_method_for_environment() {
-            let (_temp_dir, repo) = create_test_repo_with_tags();
-            let prod_release =
-                create_test_release(&repo, Environment::Production, SemverType::Patch);
-            let staging_release =
-                create_test_release(&repo, Environment::Staging, SemverType::Patch);
-
-            // These will fail due to missing remote, but we can test the environment routing
-            assert_eq!(prod_release.environment, Environment::Production);
-            assert_eq!(staging_release.environment, Environment::Staging);
-        }
-    }
-
-    mod pipeline_tests {
-        use super::*;
-
-        #[test]
-        fn pipeline_url_format_is_correct() {
-            let (_temp_dir, repo) = create_test_repo_with_tags();
-
-            // Change to the temporary directory so git config can be read
-            let original_dir = std::env::current_dir().expect("Failed to get current dir");
-            std::env::set_current_dir(_temp_dir.path()).expect("Failed to change dir");
-
-            let _release = create_test_release(&repo, Environment::Production, SemverType::Patch);
-
-            // Test the URL format that would be generated
-            let pipeline_id = 12345u64;
-            let expected_format = format!(
-                "https://{}/{}/-/pipelines/{}",
-                *GITLAB_HOST, *PROJECT_NAME, pipeline_id
-            );
-
-            assert!(expected_format.contains("/-/pipelines/"));
-            assert!(expected_format.contains(&pipeline_id.to_string()));
-
-            // Restore original directory
-            std::env::set_current_dir(original_dir).expect("Failed to restore dir");
-        }
-    }
-
-    mod release_struct_tests {
-        use super::*;
-
-        #[test]
-        fn release_can_be_created_with_all_environments() {
-            let (_temp_dir, repo) = create_test_repo_with_tags();
-
-            let prod_release =
-                create_test_release(&repo, Environment::Production, SemverType::Patch);
-            let staging_release =
-                create_test_release(&repo, Environment::Staging, SemverType::Minor);
-
-            assert_eq!(prod_release.environment, Environment::Production);
-            assert_eq!(prod_release.semver_type, SemverType::Patch);
-
-            assert_eq!(staging_release.environment, Environment::Staging);
-            assert_eq!(staging_release.semver_type, SemverType::Minor);
-        }
-
-        #[test]
-        fn release_can_be_created_with_all_semver_types() {
-            let (_temp_dir, repo) = create_test_repo_with_tags();
-
-            let patch_release =
-                create_test_release(&repo, Environment::Production, SemverType::Patch);
-            let minor_release =
-                create_test_release(&repo, Environment::Production, SemverType::Minor);
-            let major_release =
-                create_test_release(&repo, Environment::Production, SemverType::Major);
-
-            assert_eq!(patch_release.semver_type, SemverType::Patch);
-            assert_eq!(minor_release.semver_type, SemverType::Minor);
-            assert_eq!(major_release.semver_type, SemverType::Major);
-        }
-    }
-
-    mod push_options_tests {
-        use super::*;
-
-        #[test]
-        fn get_push_options_creates_valid_options() {
-            let (_temp_dir, repo) = create_test_repo_with_tags();
-            let release = create_test_release(&repo, Environment::Production, SemverType::Patch);
-
-            // Test that the release has the correct properties
-            // The actual get_push_options() method requires GitLab integration
-            assert_eq!(release.environment, Environment::Production);
-            assert_eq!(release.semver_type, SemverType::Patch);
-        }
-    }
-
-    // Note: Tests for GitLab API interactions would require proper mocking
-    // of the GitLab client, which is complex. In a real project, you'd want
-    // to create mock implementations or use a mocking framework like mockall.
-
-    mod error_handling_tests {
-        use super::*;
-
-        #[test]
-        fn handles_repository_without_commits() {
-            let temp_dir = TempDir::new().expect("Failed to create temp dir");
-            let repo = Repository::init(temp_dir.path()).expect("Failed to init repo");
-            let release = create_test_release(&repo, Environment::Production, SemverType::Patch);
-
-            // This should handle the case where there are no commits gracefully
-            let next_tag = release.get_next_tag();
-            assert!(next_tag.is_ok());
-            assert_eq!(next_tag.unwrap(), Version::new(1, 0, 0));
-        }
+    #[test]
+    fn create_staging_is_noop() {
+        let (_temp_dir, repo) = create_test_repo_with_tags();
+        let (_server, gitlab) = mock_gitlab();
+        let release = Release {
+            gitlab,
+            repository: &repo,
+            environment: Environment::Staging,
+            semver_type: SemverType::Patch,
+        };
+        assert!(release.create().is_ok());
     }
 }

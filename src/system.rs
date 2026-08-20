@@ -133,18 +133,11 @@ impl System<'_> {
         let remote = self.repository.revparse("@{u}")?.from().unwrap().id();
         let base = self.repository.merge_base(local, remote).unwrap();
 
-        let status;
+        self.evaluate_repository_status(RepositoryStatus::classify(local, remote, base))
+    }
 
-        if local == remote {
-            status = RepositoryStatus::UpToDate;
-        } else if local == base {
-            status = RepositoryStatus::NeedToPull;
-        } else if remote == base {
-            status = RepositoryStatus::NeedToPush;
-        } else {
-            status = RepositoryStatus::Diverged;
-        }
-
+    /// Map classified status to release proceed / abort (honours `--force`).
+    fn evaluate_repository_status(&self, status: RepositoryStatus) -> Result<(), Error> {
         match status {
             RepositoryStatus::UpToDate => {
                 if self.force {
@@ -266,250 +259,141 @@ impl System<'_> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use git2::Repository;
+    use git2::{Repository, Signature};
+    use serial_test::serial;
     use std::fs;
     use tempfile::TempDir;
 
     fn create_test_repo() -> (TempDir, Repository) {
-        let temp_dir = TempDir::new().expect("Failed to create temp dir");
-        let repo = Repository::init(temp_dir.path()).expect("Failed to init repo");
+        let temp_dir = TempDir::new().unwrap();
+        let repo = Repository::init(temp_dir.path()).unwrap();
         (temp_dir, repo)
     }
 
-    fn create_system_with_repo(repo: &Repository, force: bool) -> System<'_> {
-        System {
-            repository: repo,
-            force,
-        }
-    }
-
-    mod constants_tests {
-        use super::*;
-
-        #[test]
-        fn constants_have_expected_values() {
-            assert_eq!(GIT_COMMAND, "git");
-            assert_eq!(GIT_FLOW_AVH_IDENTIFIER, "AVH");
-            assert_eq!(GITLAB_CI_FILE, ".gitlab-ci.yml");
-        }
-
-        #[test]
-        fn error_messages_are_not_empty() {
-            assert!(!GIT_NOT_FOUND_MSG.is_empty());
-            assert!(!GIT_FLOW_NOT_FOUND_MSG.is_empty());
-            assert!(!GIT_FLOW_WRONG_VERSION_MSG.is_empty());
-            assert!(!GIT_FLOW_NOT_INITIALIZED_MSG.is_empty());
-            assert!(!REPO_UP_TO_DATE_MSG.is_empty());
-            assert!(!REPO_NEED_PULL_MSG.is_empty());
-            assert!(!REPO_DIVERGED_MSG.is_empty());
-            assert!(!REPO_DIRTY_MSG.is_empty());
-        }
-    }
-
-    mod file_exists_tests {
-        use super::*;
-
-        #[test]
-        fn file_exists_returns_false_for_nonexistent_file() {
-            let (_temp_dir, repo) = create_test_repo();
-            let system = create_system_with_repo(&repo, false);
-
-            let original_dir = env::current_dir().unwrap();
-            env::set_current_dir(_temp_dir.path()).unwrap();
-
-            let result = system.file_exists("nonexistent.txt");
-
-            env::set_current_dir(original_dir).unwrap();
-            assert!(!result);
-        }
-
-        #[test]
-        fn file_exists_returns_true_for_existing_file() {
-            let (_temp_dir, repo) = create_test_repo();
-            let system = create_system_with_repo(&repo, false);
-
-            let original_dir = env::current_dir().unwrap();
-            env::set_current_dir(_temp_dir.path()).unwrap();
-
-            // Create a test file
-            fs::write("test.txt", "test content").unwrap();
-            let result = system.file_exists("test.txt");
-
-            env::set_current_dir(original_dir).unwrap();
-            assert!(result);
-        }
-
-        #[test]
-        fn has_gitlab_ci_uses_file_exists() {
-            let (_temp_dir, repo) = create_test_repo();
-            let system = create_system_with_repo(&repo, false);
-
-            let original_dir = env::current_dir().unwrap();
-            env::set_current_dir(_temp_dir.path()).unwrap();
-
-            // Should return false initially
-            assert!(!system.has_gitlab_ci());
-
-            // Create .gitlab-ci.yml file
-            fs::write(".gitlab-ci.yml", "stages:\n  - test").unwrap();
-            assert!(system.has_gitlab_ci());
-
-            env::set_current_dir(original_dir).unwrap();
-        }
-    }
-
-    mod branch_tests {
-        use super::*;
-        use git2::Signature;
-
-        fn create_repo_with_commit() -> (TempDir, Repository) {
-            let (temp_dir, repo) = create_test_repo();
-
-            // Create initial commit
-            let sig = Signature::now("Test User", "test@example.com").unwrap();
+    fn create_repo_with_commit() -> (TempDir, Repository) {
+        let (temp_dir, repo) = create_test_repo();
+        let sig = Signature::now("Test User", "test@example.com").unwrap();
+        {
             let tree_id = {
                 let mut index = repo.index().unwrap();
                 index.write_tree().unwrap()
             };
-            {
-                let tree = repo.find_tree(tree_id).unwrap();
-                repo.commit(Some("HEAD"), &sig, &sig, "Initial commit", &tree, &[])
-                    .unwrap();
-            }
-
-            (temp_dir, repo)
+            let tree = repo.find_tree(tree_id).unwrap();
+            repo.commit(Some("HEAD"), &sig, &sig, "Initial commit", &tree, &[])
+                .unwrap();
         }
-
-        #[test]
-        fn is_on_branch_works_with_valid_branch() {
-            let (_temp_dir, repo) = create_repo_with_commit();
-            let system = create_system_with_repo(&repo, false);
-
-            // Should be on main/main by default after first commit
-            let head = repo.head().unwrap();
-            let branch_name = head.shorthand().unwrap();
-
-            assert!(system.is_on_branch(branch_name).is_ok());
-        }
-
-        #[test]
-        fn is_on_branch_fails_with_wrong_branch() {
-            let (_temp_dir, repo) = create_repo_with_commit();
-            let system = create_system_with_repo(&repo, false);
-
-            let result = system.is_on_branch("nonexistent-branch");
-            assert!(result.is_err());
-            assert!(result.unwrap_err().to_string().contains("Please checkout"));
-        }
+        (temp_dir, repo)
     }
-
-    mod repository_clean_tests {
-        use super::*;
-
-        #[test]
-        fn is_repository_clean_passes_for_clean_repo() {
-            let (_temp_dir, repo) = create_test_repo();
-            let system = create_system_with_repo(&repo, false);
-
-            let result = system.is_repository_clean();
-            assert!(result.is_ok());
-        }
-
-        #[test]
-        fn is_repository_clean_fails_for_dirty_repo() {
-            let (_temp_dir, repo) = create_test_repo();
-            let system = create_system_with_repo(&repo, false);
-
-            let original_dir = env::current_dir().unwrap();
-            env::set_current_dir(_temp_dir.path()).unwrap();
-
-            // Create an untracked file
-            fs::write("untracked.txt", "content").unwrap();
-
-            let result = system.is_repository_clean();
-
-            env::set_current_dir(original_dir).unwrap();
-
-            assert!(result.is_err());
-            assert!(result.unwrap_err().to_string().contains("dirty"));
-        }
-    }
-
-    mod upstream_tests {
-        use super::*;
-
-        #[test]
-        fn is_upstream_branch_defined_fails_without_upstream() {
-            let (_temp_dir, repo) = create_test_repo();
-            let system = create_system_with_repo(&repo, false);
-
-            let result = system.is_upstream_branch_defined("main");
-            assert!(result.is_err());
-            assert!(result
-                .unwrap_err()
-                .to_string()
-                .contains("Upstream branches are not correctly defined"));
-        }
-    }
-
-    mod system_struct_tests {
-        use super::*;
-
-        #[test]
-        fn system_can_be_created() {
-            let (_temp_dir, repo) = create_test_repo();
-            let system = System {
-                repository: &repo,
-                force: false,
-            };
-
-            assert!(!system.force);
-        }
-
-        #[test]
-        fn system_force_flag_works() {
-            let (_temp_dir, repo) = create_test_repo();
-            let system_no_force = create_system_with_repo(&repo, false);
-            let system_force = create_system_with_repo(&repo, true);
-
-            assert!(!system_no_force.force);
-            assert!(system_force.force);
-        }
-    }
-
-    // Note: Integration tests for git, git-flow, and network operations
-    // would require external dependencies and are better suited for
-    // integration test files or conditional compilation
 
     #[test]
-    #[ignore] // Requires git to be installed
-    fn check_git_passes_when_git_installed() {
-        let (_temp_dir, repo) = create_test_repo();
-        let system = create_system_with_repo(&repo, false);
+    #[serial]
+    fn has_gitlab_ci_detects_file() {
+        let (temp_dir, repo) = create_test_repo();
+        let system = System {
+            repository: &repo,
+            force: false,
+        };
+        let original_dir = env::current_dir().unwrap();
+        env::set_current_dir(temp_dir.path()).unwrap();
 
-        // This test will only pass if git is actually installed
-        if let Ok(_) = system.check_git() {
-            // Git is installed, test passes
-            assert!(true);
-        } else {
-            // Git not installed, skip test
-            println!("Skipping test - git not installed");
-        }
+        assert!(!system.has_gitlab_ci());
+        fs::write(".gitlab-ci.yml", "stages:\n  - test").unwrap();
+        assert!(system.has_gitlab_ci());
+
+        env::set_current_dir(original_dir).unwrap();
     }
 
-    mod repository_status_tests {
-        use super::*;
+    #[test]
+    fn is_on_branch_checks_current_head() {
+        let (_temp_dir, repo) = create_repo_with_commit();
+        let system = System {
+            repository: &repo,
+            force: false,
+        };
+        let branch_name = repo.head().unwrap().shorthand().unwrap().to_string();
+        assert!(system.is_on_branch(&branch_name).is_ok());
+        assert!(system
+            .is_on_branch("nonexistent-branch")
+            .unwrap_err()
+            .to_string()
+            .contains("Please checkout"));
+    }
 
-        #[test]
-        fn repository_status_with_force_flag() {
-            let (_temp_dir, repo) = create_test_repo();
-            let system_force = create_system_with_repo(&repo, true);
-            let system_no_force = create_system_with_repo(&repo, false);
+    #[test]
+    #[serial]
+    fn is_repository_clean_detects_untracked_files() {
+        let (temp_dir, repo) = create_test_repo();
+        let system = System {
+            repository: &repo,
+            force: false,
+        };
+        assert!(system.is_repository_clean().is_ok());
 
-            // Note: These tests would need proper git setup with remotes
-            // to fully test repository status functionality
-            assert!(system_force.force);
-            assert!(!system_no_force.force);
-        }
+        let original_dir = env::current_dir().unwrap();
+        env::set_current_dir(temp_dir.path()).unwrap();
+        fs::write("untracked.txt", "content").unwrap();
+        let err = system.is_repository_clean().unwrap_err().to_string();
+        env::set_current_dir(original_dir).unwrap();
+
+        assert!(err.contains("dirty"));
+    }
+
+    #[test]
+    fn is_upstream_branch_defined_fails_without_upstream() {
+        let (_temp_dir, repo) = create_test_repo();
+        let system = System {
+            repository: &repo,
+            force: false,
+        };
+        assert!(system
+            .is_upstream_branch_defined("main")
+            .unwrap_err()
+            .to_string()
+            .contains("Upstream branches are not correctly defined"));
+    }
+
+    #[test]
+    fn evaluate_repository_status_honours_force_and_blocks_bad_states() {
+        let (_temp_dir, repo) = create_test_repo();
+        let forced = System {
+            repository: &repo,
+            force: true,
+        };
+        let normal = System {
+            repository: &repo,
+            force: false,
+        };
+
+        assert!(forced
+            .evaluate_repository_status(RepositoryStatus::UpToDate)
+            .is_ok());
+        assert!(normal
+            .evaluate_repository_status(RepositoryStatus::UpToDate)
+            .unwrap_err()
+            .to_string()
+            .contains("up-to-date"));
+        assert!(normal
+            .evaluate_repository_status(RepositoryStatus::NeedToPush)
+            .is_ok());
+        assert!(normal
+            .evaluate_repository_status(RepositoryStatus::NeedToPull)
+            .unwrap_err()
+            .to_string()
+            .contains("pulled"));
+        assert!(normal
+            .evaluate_repository_status(RepositoryStatus::Diverged)
+            .unwrap_err()
+            .to_string()
+            .contains("diverged"));
+    }
+
+    #[test]
+    fn check_git_passes_when_git_installed() {
+        let (_temp_dir, repo) = create_test_repo();
+        let system = System {
+            repository: &repo,
+            force: false,
+        };
+        assert!(system.check_git().is_ok());
     }
 }
