@@ -56,14 +56,14 @@ lazy_static! {
 }
 
 #[derive(Parser)]
-#[clap(version, about, long_about = None)]
-#[clap(args_conflicts_with_subcommands = true)]
+#[command(version, about, long_about = None)]
+#[command(args_conflicts_with_subcommands = true)]
 struct Cli {
-    #[clap(subcommand)]
+    #[command(subcommand)]
     command: Option<Commands>,
 
     /// Legacy: `wr [flags]` with no subcommand means release.
-    #[clap(flatten)]
+    #[command(flatten)]
     release: ReleaseArgs,
 }
 
@@ -79,42 +79,42 @@ enum Commands {
 #[derive(Args)]
 struct ReleaseArgs {
     /// Launch a deploy job after the release
-    #[clap(long, action)]
+    #[arg(long)]
     deploy: bool,
 
     /// Print additional debug information
-    #[clap(short, long, action)]
+    #[arg(short, long)]
     debug: bool,
 
     /// Allow to make a release even if the remote is up to date
-    #[clap(short, long, action)]
+    #[arg(short, long)]
     force: bool,
 
     /// Define the deploy environment
-    #[clap(short, long, value_enum, default_value_t = Environment::Production)]
+    #[arg(short, long, value_enum, default_value_t = Environment::Production)]
     environment: Environment,
 
     /// Define how to increment the version number
-    #[clap(short, long, value_enum, default_value_t = SemverType::Patch)]
+    #[arg(short, long, value_enum, default_value_t = SemverType::Patch)]
     semver_type: SemverType,
 }
 
-#[derive(Parser)]
+#[derive(Args)]
 struct HotfixArgs {
     /// Commit hashes to cherry-pick onto the hotfix, in order
-    #[clap(required = true)]
+    #[arg(required = true)]
     commits: Vec<String>,
 
     /// Launch a deploy job after the hotfix
-    #[clap(long, action)]
+    #[arg(long)]
     deploy: bool,
 
     /// Print additional debug information
-    #[clap(short, long, action)]
+    #[arg(short, long)]
     debug: bool,
 
     /// Unused for hotfix status checks; kept for CLI consistency with release
-    #[clap(short, long, action)]
+    #[arg(short, long)]
     force: bool,
 }
 
