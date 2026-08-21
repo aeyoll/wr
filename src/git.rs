@@ -1,9 +1,9 @@
 use regex::Regex;
 use std::{env, path::Path};
 
-use anyhow::{anyhow, Error};
 use git2::{Config, Cred, Remote, RemoteCallbacks, Repository};
 
+use crate::error::GitError;
 use crate::{DEVELOP_BRANCH, MAIN_BRANCH};
 
 const ORIGIN_REMOTE: &str = "origin";
@@ -22,13 +22,12 @@ pub fn ref_by_tag(tag: &str) -> String {
 }
 
 /// Fetch credentials from the ssh-agent
-pub fn create_remote_callback() -> Result<RemoteCallbacks<'static>, Error> {
+pub fn create_remote_callback() -> RemoteCallbacks<'static> {
     let mut callback = RemoteCallbacks::new();
     callback.credentials(|_url, username_from_url, _allowed_types| {
         Cred::ssh_key_from_agent(username_from_url.unwrap())
     });
-
-    Ok(callback)
+    callback
 }
 
 /// Get the current git repository's configuration
@@ -95,12 +94,12 @@ pub fn get_project_name() -> String {
 }
 
 /// Get an instance of the git repository in the current directory
-pub fn get_repository() -> Result<Repository, Error> {
+pub fn get_repository() -> Result<Repository, GitError> {
     debug!("Try to load the current repository.");
     let current_dir = env::current_dir().unwrap();
     let repository = match Repository::open(current_dir) {
         Ok(repo) => repo,
-        Err(_) => return Err(anyhow!("Please launch wr in a git repository.")),
+        Err(_) => return Err(GitError::NotARepository),
     };
     debug!("Found git repository.");
 
@@ -108,7 +107,7 @@ pub fn get_repository() -> Result<Repository, Error> {
 }
 
 /// Get a Remote instance from the current repository
-pub fn get_remote(repository: &Repository) -> Result<Remote<'_>, Error> {
+pub fn get_remote(repository: &Repository) -> Result<Remote<'_>, git2::Error> {
     debug!("Try to find the remote for current repository.");
     let remote = repository.find_remote(ORIGIN_REMOTE)?;
     debug!("Found git repository's remote.");
@@ -202,7 +201,7 @@ mod tests {
 
     #[test]
     fn remote_callback_creation_succeeds() {
-        assert!(create_remote_callback().is_ok());
+        let _ = create_remote_callback();
     }
 
     #[test]
@@ -215,12 +214,7 @@ mod tests {
         let result = get_repository();
         let _ = env::set_current_dir(original_dir);
 
-        assert!(result.is_err());
-        assert!(result
-            .err()
-            .unwrap()
-            .to_string()
-            .contains("Please launch wr in a git repository"));
+        assert!(matches!(result, Err(GitError::NotARepository)));
     }
 
     #[test]

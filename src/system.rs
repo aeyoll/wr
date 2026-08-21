@@ -1,8 +1,8 @@
-use anyhow::{anyhow, Error};
 use duct::cmd;
 use git2::{ErrorCode, FetchOptions, Repository, StatusOptions};
 use std::{env, path::Path};
 
+use crate::error::SystemError;
 use crate::repository_status::RepositoryStatus;
 use crate::{
     git::{self, get_gitflow_branches_refs, get_remote},
@@ -13,16 +13,6 @@ const GIT_COMMAND: &str = "git";
 const GIT_FLOW_AVH_IDENTIFIER: &str = "AVH";
 const GITLAB_CI_FILE: &str = ".gitlab-ci.yml";
 
-const GIT_NOT_FOUND_MSG: &str = "\"git\" not found. Please install git.";
-const GIT_FLOW_NOT_FOUND_MSG: &str = "\"git-flow\" not found. Please install git-flow.";
-const GIT_FLOW_WRONG_VERSION_MSG: &str = "You have the wrong version of git flow installed. If you are on MacOS, make sure to install 'git-flow-avh'";
-const GIT_FLOW_NOT_INITIALIZED_MSG: &str = "Please run 'git flow init'.";
-const REPO_UP_TO_DATE_MSG: &str = "Repository is up-to-date, nothing to do.";
-const REPO_NEED_PULL_MSG: &str = "Repository need to be pulled first.";
-const REPO_DIVERGED_MSG: &str = "Branch have diverged, please fix the conflict first.";
-const REPO_DIRTY_MSG: &str =
-    "Repository is dirty. Please commit or stash your last changes before running wr.";
-
 pub struct System<'a> {
     pub repository: &'a Repository,
     pub force: bool,
@@ -30,34 +20,34 @@ pub struct System<'a> {
 
 impl System<'_> {
     /// Test if git is installed
-    fn check_git(&self) -> Result<(), Error> {
+    fn check_git(&self) -> Result<(), SystemError> {
         let output = cmd!(GIT_COMMAND, "--version").stdout_capture().run()?;
 
         match output.status.code() {
             Some(0) => Ok(()),
-            _ => Err(anyhow!(GIT_NOT_FOUND_MSG)),
+            _ => Err(SystemError::GitNotFound),
         }
     }
 
     /// Test if git-flow is installed
-    fn check_git_flow(&self) -> Result<(), Error> {
+    fn check_git_flow(&self) -> Result<(), SystemError> {
         let output = cmd!(GIT_COMMAND, "flow", "version")
             .stdout_capture()
             .run()?;
 
         match output.status.code() {
             Some(0) => Ok(()),
-            _ => Err(anyhow!(GIT_FLOW_NOT_FOUND_MSG)),
+            _ => Err(SystemError::GitFlowNotFound),
         }
     }
 
     /// Test if git-flow AVH is installed
-    fn check_git_flow_version(&self) -> Result<(), Error> {
+    fn check_git_flow_version(&self) -> Result<(), SystemError> {
         let output = cmd!(GIT_COMMAND, "flow", "version").read()?;
 
         match output.contains(GIT_FLOW_AVH_IDENTIFIER).then_some(0) {
             Some(_) => Ok(()),
-            _ => Err(anyhow!(GIT_FLOW_WRONG_VERSION_MSG)),
+            _ => Err(SystemError::GitFlowWrongVersion),
         }
     }
 
@@ -70,7 +60,7 @@ impl System<'_> {
     }
 
     /// Test if the repository is initialized with git flow
-    fn is_git_flow_initialized(&self) -> Result<(), Error> {
+    fn is_git_flow_initialized(&self) -> Result<(), SystemError> {
         let output = cmd!(GIT_COMMAND, "flow", "config")
             .stdout_capture()
             .stderr_capture()
@@ -78,12 +68,12 @@ impl System<'_> {
 
         match output {
             Ok(_) => Ok(()),
-            Err(_) => Err(anyhow!(GIT_FLOW_NOT_INITIALIZED_MSG)),
+            Err(_) => Err(SystemError::GitFlowNotInitialized),
         }
     }
 
     /// Test the active branch in a git repository
-    fn is_on_branch(&self, branch_name: &str) -> Result<(), Error> {
+    fn is_on_branch(&self, branch_name: &str) -> Result<(), SystemError> {
         let head = match self.repository.head() {
             Ok(head) => Some(head),
             Err(ref e)
@@ -91,35 +81,36 @@ impl System<'_> {
             {
                 None
             }
-            Err(e) => return Err(anyhow!(e)),
+            Err(e) => return Err(SystemError::Git2(e)),
         };
         let head = head.as_ref().and_then(|h| h.shorthand().ok());
 
         match (head.unwrap() == branch_name).then_some(0) {
             Some(_) => Ok(()),
-            _ => Err(anyhow!("Please checkout the {} branch", branch_name)),
+            _ => Err(SystemError::WrongBranch {
+                branch: branch_name.to_string(),
+            }),
         }
     }
 
     /// Test if an upstream branch is correctly defined
-    fn is_upstream_branch_defined(&self, branch_name: &str) -> Result<(), Error> {
+    fn is_upstream_branch_defined(&self, branch_name: &str) -> Result<(), SystemError> {
         let spec = format!("{branch_name}@{{u}}");
         let revspec = self.repository.revparse(&spec);
 
         match revspec {
             Ok(_) => Ok(()),
-            Err(_) => Err(anyhow!("
-                Upstream branches are not correctly defined.
-                Please run 'git checkout {branch_name} && git branch --set-upstream-to=origin/{branch_name} {branch_name}'.",
-            )),
+            Err(_) => Err(SystemError::UpstreamNotDefined {
+                branch: branch_name.to_string(),
+            }),
         }
     }
 
     /// Get the repository status and go further only if we need to push
     /// something
-    fn get_repository_status(&self) -> Result<(), Error> {
+    fn get_repository_status(&self) -> Result<(), SystemError> {
         let mut fetch_options = FetchOptions::new();
-        fetch_options.remote_callbacks(git::create_remote_callback().unwrap());
+        fetch_options.remote_callbacks(git::create_remote_callback());
         fetch_options.download_tags(git2::AutotagOption::All);
 
         let mut remote = get_remote(self.repository)?;
@@ -137,18 +128,18 @@ impl System<'_> {
     }
 
     /// Map classified status to release proceed / abort (honours `--force`).
-    fn evaluate_repository_status(&self, status: RepositoryStatus) -> Result<(), Error> {
+    fn evaluate_repository_status(&self, status: RepositoryStatus) -> Result<(), SystemError> {
         match status {
             RepositoryStatus::UpToDate => {
                 if self.force {
                     info!("[Setup] Repository is up-to-date, but force flag has been passed.");
                     Ok(())
                 } else {
-                    Err(anyhow!(REPO_UP_TO_DATE_MSG))
+                    Err(SystemError::RepoUpToDate)
                 }
             }
-            RepositoryStatus::NeedToPull => Err(anyhow!(REPO_NEED_PULL_MSG)),
-            RepositoryStatus::Diverged => Err(anyhow!(REPO_DIVERGED_MSG)),
+            RepositoryStatus::NeedToPull => Err(SystemError::RepoNeedPull),
+            RepositoryStatus::Diverged => Err(SystemError::RepoDiverged),
             RepositoryStatus::NeedToPush => Ok(()),
         }
     }
@@ -159,7 +150,7 @@ impl System<'_> {
     }
 
     /// Test if repository is clean
-    fn is_repository_clean(&self) -> Result<(), Error> {
+    fn is_repository_clean(&self) -> Result<(), SystemError> {
         let mut opts = StatusOptions::new();
         opts.include_untracked(true)
             // Refresh the index against HEAD before computing statuses so that
@@ -182,13 +173,13 @@ impl System<'_> {
             );
         }
 
-        Err(anyhow!(REPO_DIRTY_MSG))
+        Err(SystemError::RepoDirty)
     }
 
     /// Fetch origin without enforcing NeedToPush.
-    fn fetch_origin(&self) -> Result<(), Error> {
+    fn fetch_origin(&self) -> Result<(), SystemError> {
         let mut fetch_options = FetchOptions::new();
-        fetch_options.remote_callbacks(git::create_remote_callback().unwrap());
+        fetch_options.remote_callbacks(git::create_remote_callback());
         fetch_options.download_tags(git2::AutotagOption::All);
 
         let mut remote = get_remote(self.repository)?;
@@ -199,7 +190,7 @@ impl System<'_> {
     }
 
     /// Shared checks for release and hotfix.
-    fn system_check_common(&self) -> Result<(), Error> {
+    fn system_check_common(&self) -> Result<(), SystemError> {
         debug!("Checking for git.");
         self.check_git()?;
 
@@ -230,7 +221,7 @@ impl System<'_> {
     }
 
     /// Perform system checks for release.
-    pub fn system_check(&self) -> Result<(), Error> {
+    pub fn system_check(&self) -> Result<(), SystemError> {
         self.system_check_common()?;
 
         debug!(
@@ -246,7 +237,7 @@ impl System<'_> {
     }
 
     /// Perform system checks for hotfix (no develop / NeedToPush requirement).
-    pub fn hotfix_system_check(&self) -> Result<(), Error> {
+    pub fn hotfix_system_check(&self) -> Result<(), SystemError> {
         self.system_check_common()?;
 
         debug!("Fetching origin before hotfix.");
@@ -312,11 +303,10 @@ mod tests {
         };
         let branch_name = repo.head().unwrap().shorthand().unwrap().to_string();
         assert!(system.is_on_branch(&branch_name).is_ok());
-        assert!(system
-            .is_on_branch("nonexistent-branch")
-            .unwrap_err()
-            .to_string()
-            .contains("Please checkout"));
+        assert!(matches!(
+            system.is_on_branch("nonexistent-branch"),
+            Err(SystemError::WrongBranch { .. })
+        ));
     }
 
     #[test]
@@ -332,10 +322,10 @@ mod tests {
         let original_dir = env::current_dir().unwrap();
         env::set_current_dir(temp_dir.path()).unwrap();
         fs::write("untracked.txt", "content").unwrap();
-        let err = system.is_repository_clean().unwrap_err().to_string();
+        let err = system.is_repository_clean().unwrap_err();
         env::set_current_dir(original_dir).unwrap();
 
-        assert!(err.contains("dirty"));
+        assert!(matches!(err, SystemError::RepoDirty));
     }
 
     #[test]
@@ -345,11 +335,10 @@ mod tests {
             repository: &repo,
             force: false,
         };
-        assert!(system
-            .is_upstream_branch_defined("main")
-            .unwrap_err()
-            .to_string()
-            .contains("Upstream branches are not correctly defined"));
+        assert!(matches!(
+            system.is_upstream_branch_defined("main"),
+            Err(SystemError::UpstreamNotDefined { .. })
+        ));
     }
 
     #[test]
@@ -367,24 +356,21 @@ mod tests {
         assert!(forced
             .evaluate_repository_status(RepositoryStatus::UpToDate)
             .is_ok());
-        assert!(normal
-            .evaluate_repository_status(RepositoryStatus::UpToDate)
-            .unwrap_err()
-            .to_string()
-            .contains("up-to-date"));
+        assert!(matches!(
+            normal.evaluate_repository_status(RepositoryStatus::UpToDate),
+            Err(SystemError::RepoUpToDate)
+        ));
         assert!(normal
             .evaluate_repository_status(RepositoryStatus::NeedToPush)
             .is_ok());
-        assert!(normal
-            .evaluate_repository_status(RepositoryStatus::NeedToPull)
-            .unwrap_err()
-            .to_string()
-            .contains("pulled"));
-        assert!(normal
-            .evaluate_repository_status(RepositoryStatus::Diverged)
-            .unwrap_err()
-            .to_string()
-            .contains("diverged"));
+        assert!(matches!(
+            normal.evaluate_repository_status(RepositoryStatus::NeedToPull),
+            Err(SystemError::RepoNeedPull)
+        ));
+        assert!(matches!(
+            normal.evaluate_repository_status(RepositoryStatus::Diverged),
+            Err(SystemError::RepoDiverged)
+        ));
     }
 
     #[test]

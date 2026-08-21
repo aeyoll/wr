@@ -1,10 +1,10 @@
-use anyhow::{anyhow, Context, Error};
 use dialoguer::{theme::ColorfulTheme, Confirm};
 use duct::cmd;
 use git2::{Oid, Repository};
 use semver::Version;
 use std::path::Path;
 
+use crate::error::HotfixError;
 use crate::{release::Release, DEVELOP_BRANCH, MAIN_BRANCH};
 
 struct Snapshot {
@@ -24,25 +24,29 @@ impl Hotfix<'_> {
         format!("hotfix/{tag}")
     }
 
-    fn branch_oid(&self, branch: &str) -> Result<Oid, Error> {
+    fn branch_oid(&self, branch: &str) -> Result<Oid, HotfixError> {
         let reference = self
             .repository
             .find_reference(&format!("refs/heads/{branch}"))
-            .with_context(|| format!("Branch {branch} not found"))?;
+            .map_err(|_| HotfixError::BranchNotFound {
+                branch: branch.to_string(),
+            })?;
 
         reference
             .target()
-            .ok_or_else(|| anyhow!("Branch {branch} has no target"))
+            .ok_or_else(|| HotfixError::BranchNoTarget {
+                branch: branch.to_string(),
+            })
     }
 
-    fn current_branch(&self) -> Result<String, Error> {
+    fn current_branch(&self) -> Result<String, HotfixError> {
         let head = self.repository.head()?;
         head.shorthand()
             .map(str::to_string)
-            .map_err(|_| anyhow!("Detached HEAD; checkout a branch first"))
+            .map_err(|_| HotfixError::DetachedHead)
     }
 
-    fn snapshot(&self, tag: &str) -> Result<Snapshot, Error> {
+    fn snapshot(&self, tag: &str) -> Result<Snapshot, HotfixError> {
         Ok(Snapshot {
             main_oid: self.branch_oid(&MAIN_BRANCH)?,
             develop_oid: self.branch_oid(&DEVELOP_BRANCH)?,
@@ -51,11 +55,13 @@ impl Hotfix<'_> {
         })
     }
 
-    fn validate_commits(&self) -> Result<(), Error> {
+    fn validate_commits(&self) -> Result<(), HotfixError> {
         for commit in self.commits {
             self.repository
                 .revparse_single(commit)
-                .with_context(|| format!("Commit \"{commit}\" not found"))?;
+                .map_err(|_| HotfixError::CommitNotFound {
+                    commit: commit.clone(),
+                })?;
         }
 
         Ok(())
@@ -70,7 +76,7 @@ impl Hotfix<'_> {
         rollback_local(snapshot, &MAIN_BRANCH, &DEVELOP_BRANCH, workdir);
     }
 
-    fn create_inner(&self, tag: &str) -> Result<(), Error> {
+    fn create_inner(&self, tag: &str) -> Result<(), HotfixError> {
         info!("[Hotfix] Creating hotfix {tag}.");
         cmd!("git", "flow", "hotfix", "start", tag)
             .stdout_capture()
@@ -83,7 +89,10 @@ impl Hotfix<'_> {
                 .stdout_capture()
                 .stderr_capture()
                 .read()
-                .with_context(|| format!("Cherry-pick of \"{commit}\" failed"))?;
+                .map_err(|source| HotfixError::CherryPickFailed {
+                    commit: commit.clone(),
+                    source,
+                })?;
         }
 
         cmd!("git", "flow", "hotfix", "finish", "-m", tag, tag)
@@ -100,7 +109,7 @@ impl Hotfix<'_> {
     }
 
     /// Create a hotfix named after the next patch tag, cherry-picking commits in order.
-    pub fn create(&self, release: &Release<'_>) -> Result<Version, Error> {
+    pub fn create(&self, release: &Release<'_>) -> Result<Version, HotfixError> {
         self.ensure_has_commits()?;
         self.validate_commits()?;
 
@@ -115,8 +124,8 @@ impl Hotfix<'_> {
             .unwrap()
         {
             Some(true) => {}
-            Some(false) => return Err(anyhow!("Cancelling.")),
-            None => return Err(anyhow!("Aborting.")),
+            Some(false) => return Err(HotfixError::Cancelled),
+            None => return Err(HotfixError::Aborted),
         }
 
         let snapshot = self.snapshot(&tag)?;
@@ -129,9 +138,9 @@ impl Hotfix<'_> {
         Ok(next_tag)
     }
 
-    fn ensure_has_commits(&self) -> Result<(), Error> {
+    fn ensure_has_commits(&self) -> Result<(), HotfixError> {
         if self.commits.is_empty() {
-            return Err(anyhow!("At least one commit hash is required."));
+            return Err(HotfixError::EmptyCommits);
         }
 
         Ok(())
@@ -266,9 +275,10 @@ mod tests {
             commits: &commits,
         };
 
-        let result = hotfix.validate_commits();
-        assert!(result.is_err());
-        assert!(result.unwrap_err().to_string().contains("not found"));
+        assert!(matches!(
+            hotfix.validate_commits(),
+            Err(HotfixError::CommitNotFound { .. })
+        ));
     }
 
     #[test]
@@ -355,7 +365,9 @@ mod tests {
             commits: &commits,
         };
 
-        let err = hotfix.ensure_has_commits().unwrap_err();
-        assert!(err.to_string().contains("At least one commit"));
+        assert!(matches!(
+            hotfix.ensure_has_commits(),
+            Err(HotfixError::EmptyCommits)
+        ));
     }
 }
