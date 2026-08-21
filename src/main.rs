@@ -43,10 +43,10 @@ mod git;
 mod repository_status;
 
 const DEVELOP: &str = "develop";
-const MAIN: &str = "main";
+const MASTER: &str = "master";
 
 static DEVELOP_BRANCH: LazyLock<String> = LazyLock::new(|| get_gitflow_branch_name(DEVELOP));
-static MAIN_BRANCH: LazyLock<String> = LazyLock::new(|| get_gitflow_branch_name(MAIN));
+static MAIN_BRANCH: LazyLock<String> = LazyLock::new(|| get_gitflow_branch_name(MASTER));
 static PROJECT_NAME: LazyLock<String> = LazyLock::new(get_project_name);
 static GITLAB_HOST: LazyLock<String> = LazyLock::new(get_gitlab_host);
 static GITLAB_TOKEN: LazyLock<String> = LazyLock::new(get_gitlab_token);
