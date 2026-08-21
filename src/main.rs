@@ -1,6 +1,6 @@
 use clap::{Args, Parser, Subcommand};
 
-use anyhow::{anyhow, Error};
+use miette::Result;
 
 #[macro_use]
 extern crate log;
@@ -13,11 +13,11 @@ use indicatif::HumanDuration;
 use simplelog::*;
 
 use std::env;
-use std::process;
 use std::time::Instant;
 
 use gitlab::Gitlab;
 
+mod error;
 mod system;
 use system::System;
 
@@ -37,6 +37,7 @@ use release::Release;
 mod hotfix;
 use hotfix::Hotfix;
 
+use crate::error::GitlabError;
 use crate::git::{
     get_gitflow_branch_name, get_gitlab_host, get_gitlab_token, get_project_name, get_repository,
 };
@@ -144,19 +145,15 @@ fn setup_env() {
     env::set_var("GIT_MERGE_AUTOEDIT", "no");
 }
 
-fn connect_gitlab() -> Result<Gitlab, Error> {
+fn connect_gitlab() -> Result<Gitlab, GitlabError> {
     info!("[Setup] Login into Gitlab instance \"{}\".", *GITLAB_HOST);
-    Gitlab::new(&*GITLAB_HOST, &*GITLAB_TOKEN).map_err(|e| {
-        anyhow!(
-            "Failed to connect to Gitlab instance \"{}\", with token \"{}\" ({:?})",
-            *GITLAB_HOST,
-            *GITLAB_TOKEN,
-            e
-        )
+    Gitlab::new(&*GITLAB_HOST, &*GITLAB_TOKEN).map_err(|source| GitlabError::ConnectFailed {
+        host: GITLAB_HOST.clone(),
+        source,
     })
 }
 
-fn maybe_deploy(release: &Release<'_>, system: &System<'_>, deploy: bool) -> Result<(), Error> {
+fn maybe_deploy(release: &Release<'_>, system: &System<'_>, deploy: bool) -> Result<()> {
     if !deploy {
         return Ok(());
     }
@@ -171,7 +168,7 @@ fn maybe_deploy(release: &Release<'_>, system: &System<'_>, deploy: bool) -> Res
     Ok(())
 }
 
-fn run_release(matches: ReleaseArgs) -> Result<(), Error> {
+fn run_release(matches: ReleaseArgs) -> Result<()> {
     init_logging(matches.debug);
     setup_env();
 
@@ -214,7 +211,7 @@ fn run_release(matches: ReleaseArgs) -> Result<(), Error> {
     Ok(())
 }
 
-fn run_hotfix(matches: HotfixArgs) -> Result<(), Error> {
+fn run_hotfix(matches: HotfixArgs) -> Result<()> {
     init_logging(matches.debug);
     setup_env();
 
@@ -256,7 +253,7 @@ fn run_hotfix(matches: HotfixArgs) -> Result<(), Error> {
     Ok(())
 }
 
-fn app() -> Result<(), Error> {
+fn app() -> Result<()> {
     let cli = Cli::parse();
     match cli.command {
         Some(Commands::Release(matches)) => run_release(matches),
@@ -265,19 +262,11 @@ fn app() -> Result<(), Error> {
     }
 }
 
-fn main() {
+fn main() -> Result<()> {
     let started = Instant::now();
-
-    process::exit(match app() {
-        Ok(_) => {
-            info!("Done in {}.", HumanDuration(started.elapsed()));
-            0
-        }
-        Err(err) => {
-            error!("{err}");
-            1
-        }
-    });
+    app()?;
+    info!("Done in {}.", HumanDuration(started.elapsed()));
+    Ok(())
 }
 
 #[cfg(test)]

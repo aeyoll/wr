@@ -2,6 +2,7 @@ use semver::Version;
 use std::thread::sleep;
 use std::time::Duration;
 
+use crate::error::ReleaseError;
 use crate::{
     environment::Environment,
     git::{self, get_gitflow_branches_refs, get_remote},
@@ -9,7 +10,6 @@ use crate::{
     pipeline::{find_active_pipeline_id, Pipeline, StatusState},
     semver_type::SemverType,
 };
-use anyhow::{anyhow, Error};
 use git2::{PushOptions, Repository};
 use gitlab::{
     api::{
@@ -25,8 +25,14 @@ use duct::cmd;
 
 use crate::{DEVELOP_BRANCH, GITLAB_HOST, PROJECT_NAME};
 
+fn gitlab_err(err: impl ToString) -> ReleaseError {
+    ReleaseError::Gitlab {
+        message: err.to_string(),
+    }
+}
+
 /// Highest parseable semver tag in the repository.
-pub fn last_tag(repository: &Repository) -> Result<Version, Error> {
+pub fn last_tag(repository: &Repository) -> Result<Version, ReleaseError> {
     let tags = repository.tag_names(None).unwrap();
 
     let latest_tag = tags
@@ -36,12 +42,12 @@ pub fn last_tag(repository: &Repository) -> Result<Version, Error> {
 
     match latest_tag {
         Some(version) => Ok(version),
-        None => Err(anyhow!("No tag found")),
+        None => Err(ReleaseError::NoTagFound),
     }
 }
 
 /// Next version from `last_tag`, or `1.0.0` when none exist.
-pub fn next_tag(repository: &Repository, semver_type: SemverType) -> Result<Version, Error> {
+pub fn next_tag(repository: &Repository, semver_type: SemverType) -> Result<Version, ReleaseError> {
     let next: Version = match last_tag(repository) {
         Ok(last) => {
             let mut next = last;
@@ -76,17 +82,17 @@ pub struct Release<'a> {
 
 impl Release<'_> {
     /// Fetch the latest tag from a git repository
-    pub fn get_last_tag(&self) -> Result<Version, Error> {
+    pub fn get_last_tag(&self) -> Result<Version, ReleaseError> {
         last_tag(self.repository)
     }
 
     /// Compute the next tag from the existing tag
-    pub fn get_next_tag(&self) -> Result<Version, Error> {
+    pub fn get_next_tag(&self) -> Result<Version, ReleaseError> {
         next_tag(self.repository, self.semver_type)
     }
 
     /// Push a branch to the remote
-    fn push_branch(&self, branch_name: &str) -> Result<(), Error> {
+    fn push_branch(&self, branch_name: &str) -> Result<(), ReleaseError> {
         let mut push_options = self.get_push_options();
         let mut remote = get_remote(self.repository)?;
 
@@ -96,7 +102,7 @@ impl Release<'_> {
     }
 
     /// Create a production release
-    pub fn create_production_release(&self) -> Result<(), Error> {
+    pub fn create_production_release(&self) -> Result<(), ReleaseError> {
         let next_tag = self.get_next_tag()?;
 
         info!("[Release] This will create release tag {next_tag}.");
@@ -132,13 +138,13 @@ impl Release<'_> {
 
                 Ok(())
             }
-            Some(false) => Err(anyhow!("Cancelling.")),
-            None => Err(anyhow!("Aborting.")),
+            Some(false) => Err(ReleaseError::Cancelled),
+            None => Err(ReleaseError::Aborted),
         }
     }
 
     /// Create the new release
-    pub fn create(&self) -> Result<(), Error> {
+    pub fn create(&self) -> Result<(), ReleaseError> {
         match self.environment {
             Environment::Production => self.create_production_release(),
             Environment::Staging => Ok(()),
@@ -148,18 +154,18 @@ impl Release<'_> {
     /// Get the push options
     pub fn get_push_options(&self) -> PushOptions<'static> {
         let mut push_options = PushOptions::new();
-        push_options.remote_callbacks(git::create_remote_callback().unwrap());
+        push_options.remote_callbacks(git::create_remote_callback());
         push_options
     }
 
     /// Deploy to the staging environment
-    pub fn push_staging(&self) -> Result<(), Error> {
+    pub fn push_staging(&self) -> Result<(), ReleaseError> {
         self.push_branch(&DEVELOP_BRANCH)?;
         Ok(())
     }
 
     /// Deploy to the production environment
-    pub fn push_production(&self) -> Result<(), Error> {
+    pub fn push_production(&self) -> Result<(), ReleaseError> {
         let mut push_options = self.get_push_options();
         let mut remote = get_remote(self.repository)?;
 
@@ -176,7 +182,7 @@ impl Release<'_> {
     }
 
     /// Push the release
-    pub fn push(&self) -> Result<(), Error> {
+    pub fn push(&self) -> Result<(), ReleaseError> {
         match self.environment {
             Environment::Production => self.push_production()?,
             Environment::Staging => self.push_staging()?,
@@ -186,18 +192,18 @@ impl Release<'_> {
     }
 
     /// Get a job by its id
-    pub fn get_job(&self, job_id: u64) -> Result<Job, Error> {
+    pub fn get_job(&self, job_id: u64) -> Result<Job, ReleaseError> {
         let job_endpoint = projects::jobs::Job::builder()
             .project(PROJECT_NAME.as_str())
             .job(job_id)
             .build()
             .unwrap();
-        let job: Job = job_endpoint.query(&self.gitlab)?;
+        let job: Job = job_endpoint.query(&self.gitlab).map_err(gitlab_err)?;
         Ok(job)
     }
 
     /// Get the last pipeline id
-    pub fn get_last_pipeline_id(&self) -> Result<u64, Error> {
+    pub fn get_last_pipeline_id(&self) -> Result<u64, ReleaseError> {
         let mut last_pipeline_id: u64 = 0;
         let pipeline_ref = self.environment.get_pipeline_ref();
         let timeout = 60;
@@ -214,7 +220,8 @@ impl Release<'_> {
                 .build()
                 .unwrap();
 
-            let pipelines: Vec<Pipeline> = pipelines_endpoint.query(&self.gitlab)?;
+            let pipelines: Vec<Pipeline> =
+                pipelines_endpoint.query(&self.gitlab).map_err(gitlab_err)?;
 
             if let Some(id) = find_active_pipeline_id(&pipelines) {
                 last_pipeline_id = id;
@@ -224,14 +231,14 @@ impl Release<'_> {
         }
 
         if last_pipeline_id == 0 {
-            return Err(anyhow!("[Deploy] Pipeline was not found, aborting."));
+            return Err(ReleaseError::PipelineNotFound);
         }
 
         Ok(last_pipeline_id)
     }
 
     /// Deploy to the environment
-    pub fn deploy(&self) -> Result<(), Error> {
+    pub fn deploy(&self) -> Result<(), ReleaseError> {
         info!("[Deploy] Fetching latest pipeline.");
         if let Ok(last_pipeline_id) = self.get_last_pipeline_id() {
             let pipeline_url = format!(
@@ -246,7 +253,7 @@ impl Release<'_> {
                 .build()
                 .unwrap();
 
-            let jobs: Vec<Job> = jobs_endpoint.query(&self.gitlab)?;
+            let jobs: Vec<Job> = jobs_endpoint.query(&self.gitlab).map_err(gitlab_err)?;
 
             let deploy_job_name = self.environment.get_deploy_job_name();
 
@@ -271,7 +278,9 @@ impl Release<'_> {
                     .build()
                     .unwrap();
 
-                gitlab::api::ignore(play_job_endpoint).query(&self.gitlab)?;
+                gitlab::api::ignore(play_job_endpoint)
+                    .query(&self.gitlab)
+                    .map_err(gitlab_err)?;
 
                 info!("[Deploy] Playing \"{job_name}\" job.");
 
@@ -357,10 +366,7 @@ mod tests {
     fn get_last_tag_fails_with_no_tags() {
         let temp_dir = TempDir::new().unwrap();
         let repo = Repository::init(temp_dir.path()).unwrap();
-        assert!(last_tag(&repo)
-            .unwrap_err()
-            .to_string()
-            .contains("No tag found"));
+        assert!(matches!(last_tag(&repo), Err(ReleaseError::NoTagFound)));
     }
 
     #[test]
