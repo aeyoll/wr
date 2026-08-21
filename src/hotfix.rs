@@ -101,10 +101,7 @@ impl Hotfix<'_> {
 
     /// Create a hotfix named after the next patch tag, cherry-picking commits in order.
     pub fn create(&self, release: &Release<'_>) -> Result<Version, Error> {
-        if self.commits.is_empty() {
-            return Err(anyhow!("At least one commit hash is required."));
-        }
-
+        self.ensure_has_commits()?;
         self.validate_commits()?;
 
         let next_tag = release.get_next_tag()?;
@@ -130,6 +127,14 @@ impl Hotfix<'_> {
         }
 
         Ok(next_tag)
+    }
+
+    fn ensure_has_commits(&self) -> Result<(), Error> {
+        if self.commits.is_empty() {
+            return Err(anyhow!("At least one commit hash is required."));
+        }
+
+        Ok(())
     }
 }
 
@@ -339,5 +344,18 @@ mod tests {
     #[test]
     fn hotfix_branch_name_uses_tag() {
         assert_eq!(Hotfix::hotfix_branch("1.2.4"), "hotfix/1.2.4");
+    }
+
+    #[test]
+    fn create_rejects_empty_commits_before_prompt() {
+        let (_temp_dir, repo, _) = create_repo_with_branches();
+        let commits: Vec<String> = vec![];
+        let hotfix = Hotfix {
+            repository: &repo,
+            commits: &commits,
+        };
+
+        let err = hotfix.ensure_has_commits().unwrap_err();
+        assert!(err.to_string().contains("At least one commit"));
     }
 }

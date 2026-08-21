@@ -26,6 +26,5 @@ simplelog = "0.12.2"
 
 [dev-dependencies]
 tempfile = "3.27"
-mockall = "0.15"
 httpmock = "0.8"
 serial_test = "4.0"

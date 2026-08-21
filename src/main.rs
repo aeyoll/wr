@@ -283,6 +283,9 @@ fn main() {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use git2::Repository;
+    use serial_test::serial;
+    use tempfile::TempDir;
 
     fn parse(args: &[&str]) -> Commands {
         let cli = Cli::try_parse_from(args).expect("cli");
@@ -298,6 +301,8 @@ mod tests {
             Commands::Release(args) => {
                 assert!(!args.deploy);
                 assert!(!args.force);
+                assert_eq!(args.environment, Environment::Production);
+                assert_eq!(args.semver_type, SemverType::Patch);
             }
             Commands::Hotfix(_) => panic!("expected release"),
         }
@@ -315,11 +320,75 @@ mod tests {
     }
 
     #[test]
-    fn explicit_release_and_hotfix_unchanged() {
-        assert!(matches!(parse(&["wr", "release"]), Commands::Release(_)));
-        match parse(&["wr", "hotfix", "abc"]) {
-            Commands::Hotfix(args) => assert_eq!(args.commits, ["abc"]),
+    fn release_parses_environment_and_semver() {
+        match parse(&[
+            "wr",
+            "release",
+            "--environment",
+            "staging",
+            "--semver-type",
+            "minor",
+            "--deploy",
+        ]) {
+            Commands::Release(args) => {
+                assert_eq!(args.environment, Environment::Staging);
+                assert_eq!(args.semver_type, SemverType::Minor);
+                assert!(args.deploy);
+            }
+            Commands::Hotfix(_) => panic!("expected release"),
+        }
+    }
+
+    #[test]
+    fn hotfix_parses_commits_and_deploy() {
+        match parse(&["wr", "hotfix", "abc", "def", "--deploy"]) {
+            Commands::Hotfix(args) => {
+                assert_eq!(args.commits, ["abc", "def"]);
+                assert!(args.deploy);
+            }
             Commands::Release(_) => panic!("expected hotfix"),
         }
+    }
+
+    #[test]
+    fn hotfix_requires_commit_arg() {
+        assert!(Cli::try_parse_from(["wr", "hotfix"]).is_err());
+    }
+
+    #[test]
+    #[serial]
+    fn maybe_deploy_skips_when_flag_false_or_no_ci() {
+        use httpmock::Method::GET;
+        use httpmock::MockServer;
+
+        let temp_dir = TempDir::new().unwrap();
+        let repo = Repository::init(temp_dir.path()).unwrap();
+
+        let server = MockServer::start();
+        let _user = server.mock(|when, then| {
+            when.method(GET).path("/api/v4/user");
+            then.status(200).body("{}");
+        });
+        let gitlab = Gitlab::new_insecure(format!("127.0.0.1:{}", server.port()), "token").unwrap();
+
+        let release = Release {
+            gitlab,
+            repository: &repo,
+            environment: Environment::Production,
+            semver_type: SemverType::Patch,
+        };
+        let system = System {
+            repository: &repo,
+            force: false,
+        };
+
+        assert!(maybe_deploy(&release, &system, false).is_ok());
+
+        let original_dir = env::current_dir().unwrap();
+        env::set_current_dir(temp_dir.path()).unwrap();
+        assert!(!system.has_gitlab_ci());
+        // deploy=true but no .gitlab-ci.yml → warn and skip (never calls GitLab).
+        assert!(maybe_deploy(&release, &system, true).is_ok());
+        env::set_current_dir(original_dir).unwrap();
     }
 }
