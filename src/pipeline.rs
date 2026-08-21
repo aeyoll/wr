@@ -1,15 +1,9 @@
-use chrono::{DateTime, Local};
-use serde::{Deserialize, Serialize};
+use serde::Deserialize;
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Deserialize)]
 pub struct Pipeline {
     pub id: u64,
     pub status: String,
-    r#ref: String,
-    sha: String,
-    web_url: String,
-    created_at: DateTime<Local>,
-    updated_at: DateTime<Local>,
 }
 
 impl Pipeline {
@@ -67,18 +61,11 @@ pub enum StatusState {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use chrono::{TimeZone, Utc};
 
     fn sample_pipeline(id: u64, status: &str) -> Pipeline {
-        let t = Utc.with_ymd_and_hms(2023, 1, 1, 12, 0, 0).unwrap().into();
         Pipeline {
             id,
             status: status.to_string(),
-            r#ref: "main".to_string(),
-            sha: "abc".to_string(),
-            web_url: "https://example.com".to_string(),
-            created_at: t,
-            updated_at: t,
         }
     }
 
@@ -87,19 +74,13 @@ mod tests {
         let json = r#"
         {
             "id": 12345,
-            "status": "running",
-            "ref": "main",
-            "sha": "abc123def456",
-            "web_url": "https://gitlab.com/project/-/pipelines/12345",
-            "created_at": "2023-01-01T12:00:00+00:00",
-            "updated_at": "2023-01-01T12:30:00+00:00"
+            "status": "running"
         }
         "#;
 
         let pipeline: Pipeline = serde_json::from_str(json).unwrap();
         assert_eq!(pipeline.id, 12345);
         assert_eq!(pipeline.status, "running");
-        assert_eq!(pipeline.r#ref, "main");
     }
 
     #[test]
