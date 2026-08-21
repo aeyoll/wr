@@ -6,13 +6,10 @@ use miette::Result;
 extern crate log;
 extern crate simplelog;
 
-#[macro_use]
-extern crate lazy_static;
-
-use indicatif::HumanDuration;
 use simplelog::*;
 
 use std::env;
+use std::sync::LazyLock;
 use std::time::Instant;
 
 use gitlab::Gitlab;
@@ -48,13 +45,11 @@ mod repository_status;
 const DEVELOP: &str = "develop";
 const MAIN: &str = "main";
 
-lazy_static! {
-    static ref DEVELOP_BRANCH: String = get_gitflow_branch_name(DEVELOP);
-    static ref MAIN_BRANCH: String = get_gitflow_branch_name(MAIN);
-    static ref PROJECT_NAME: String = get_project_name();
-    static ref GITLAB_HOST: String = get_gitlab_host();
-    static ref GITLAB_TOKEN: String = get_gitlab_token();
-}
+static DEVELOP_BRANCH: LazyLock<String> = LazyLock::new(|| get_gitflow_branch_name(DEVELOP));
+static MAIN_BRANCH: LazyLock<String> = LazyLock::new(|| get_gitflow_branch_name(MAIN));
+static PROJECT_NAME: LazyLock<String> = LazyLock::new(get_project_name);
+static GITLAB_HOST: LazyLock<String> = LazyLock::new(get_gitlab_host);
+static GITLAB_TOKEN: LazyLock<String> = LazyLock::new(get_gitlab_token);
 
 #[derive(Parser)]
 #[command(version, about, long_about = None)]
@@ -265,7 +260,7 @@ fn app() -> Result<()> {
 fn main() -> Result<()> {
     let started = Instant::now();
     app()?;
-    info!("Done in {}.", HumanDuration(started.elapsed()));
+    info!("Done in {:?}.", started.elapsed());
     Ok(())
 }
 

@@ -1,4 +1,5 @@
 use regex::Regex;
+use std::sync::LazyLock;
 use std::{env, path::Path};
 
 use git2::{Config, Cred, Remote, RemoteCallbacks, Repository};
@@ -61,22 +62,22 @@ pub fn get_gitflow_branch_name(branch: &str) -> String {
     config.get_string(&config_path).unwrap()
 }
 
-/// Get a Gitlab project name from the remote url set in the config
-fn extract_project_name_from_remote_url(remote_url: &str) -> String {
-    lazy_static! {
-        static ref PROJECT_NAME_REGEX: Regex = Regex::new(
-            r"(?x)
+static PROJECT_NAME_REGEX: LazyLock<Regex> = LazyLock::new(|| {
+    Regex::new(
+        r"(?x)
             (?:
                 [^@\s]+@[^:\s]+:
                 |
                 https?://[^/\s]+/
             )
             (?P<project_name>[^\s]+?)
-            \.git$"
-        )
-        .unwrap();
-    }
+            \.git$",
+    )
+    .unwrap()
+});
 
+/// Get a Gitlab project name from the remote url set in the config
+fn extract_project_name_from_remote_url(remote_url: &str) -> String {
     let project_name = PROJECT_NAME_REGEX
         .captures(remote_url)
         .and_then(|cap| cap.name("project_name").map(|login| login.as_str()))
