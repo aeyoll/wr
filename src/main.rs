@@ -6,6 +6,7 @@ use miette::Result;
 extern crate log;
 extern crate simplelog;
 
+use indicatif::HumanDuration;
 use simplelog::*;
 
 use std::env;
@@ -260,7 +261,7 @@ fn app() -> Result<()> {
 fn main() -> Result<()> {
     let started = Instant::now();
     app()?;
-    info!("Done in {:?}.", started.elapsed());
+    info!("Done in {}.", HumanDuration(started.elapsed()));
     Ok(())
 }
 
