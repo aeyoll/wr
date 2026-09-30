@@ -78,6 +78,8 @@ pub struct Release<'a> {
     pub repository: &'a Repository,
     pub environment: Environment,
     pub semver_type: SemverType,
+    /// Skip the interactive confirmation (for CI usage)
+    pub assume_yes: bool,
 }
 
 impl Release<'_> {
@@ -107,11 +109,17 @@ impl Release<'_> {
 
         info!("[Release] This will create release tag {next_tag}.");
 
-        match Confirm::with_theme(&ColorfulTheme::default())
-            .with_prompt("Do you want to continue?")
-            .interact_opt()
-            .unwrap()
-        {
+        let confirmation = if self.assume_yes {
+            info!("[Release] Confirmation skipped (--yes).");
+            Some(true)
+        } else {
+            Confirm::with_theme(&ColorfulTheme::default())
+                .with_prompt("Do you want to continue?")
+                .interact_opt()
+                .unwrap()
+        };
+
+        match confirmation {
             Some(true) => {
                 info!("[Release] Creating release {next_tag}.");
                 cmd!("git", "flow", "release", "start", next_tag.to_string())
@@ -405,6 +413,7 @@ mod tests {
             repository: &repo,
             environment: Environment::Staging,
             semver_type: SemverType::Patch,
+            assume_yes: false,
         };
         assert!(release.create().is_ok());
     }

@@ -94,6 +94,10 @@ struct ReleaseArgs {
     /// Define how to increment the version number
     #[arg(short, long, value_enum, default_value_t = SemverType::Patch)]
     semver_type: SemverType,
+
+    /// Do not ask for confirmation (useful in CI)
+    #[arg(short = 'y', long)]
+    yes: bool,
 }
 
 #[derive(Args)]
@@ -192,6 +196,7 @@ fn run_release(matches: ReleaseArgs) -> Result<()> {
         repository: &repository,
         environment,
         semver_type,
+        assume_yes: matches.yes,
     };
 
     debug!("[Release] Creating a new {environment} release.");
@@ -229,6 +234,7 @@ fn run_hotfix(matches: HotfixArgs) -> Result<()> {
         repository: &repository,
         environment: Environment::Production,
         semver_type: SemverType::Patch,
+        assume_yes: false,
     };
 
     let hotfix = Hotfix {
@@ -361,6 +367,7 @@ mod tests {
             repository: &repo,
             environment: Environment::Production,
             semver_type: SemverType::Patch,
+            assume_yes: false,
         };
         let system = System {
             repository: &repo,
