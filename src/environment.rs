@@ -10,22 +10,26 @@ pub enum Environment {
     #[default]
     Production,
     Staging,
+    /// Production release, then play deploy_prod and deploy_staging.
+    Both,
 }
 
 impl Environment {
-    /// Get the deploy job name for the environment
-    pub fn get_deploy_job_name(&self) -> &'static str {
+    /// Deploy job names, in the order they are played.
+    pub fn deploy_jobs(&self) -> &'static [&'static str] {
         match self {
-            Environment::Production => DEPLOY_PROD_JOB,
-            Environment::Staging => DEPLOY_STAGING_JOB,
+            Environment::Production => &[DEPLOY_PROD_JOB],
+            Environment::Staging => &[DEPLOY_STAGING_JOB],
+            Environment::Both => &[DEPLOY_PROD_JOB, DEPLOY_STAGING_JOB],
         }
     }
 
-    /// Get the pipeline ref for the environment
-    pub fn get_pipeline_ref(&self) -> &str {
-        match self {
-            Environment::Production => &MAIN_BRANCH,
-            Environment::Staging => &DEVELOP_BRANCH,
+    /// Branch whose pipeline contains `job_name`.
+    pub fn pipeline_ref_for_job(job_name: &str) -> &str {
+        if job_name == DEPLOY_STAGING_JOB {
+            &DEVELOP_BRANCH
+        } else {
+            &MAIN_BRANCH
         }
     }
 }
@@ -38,6 +42,7 @@ impl FromStr for Environment {
         match s {
             "Production" => Ok(Environment::Production),
             "Staging" => Ok(Environment::Staging),
+            "Both" => Ok(Environment::Both),
             _ => Err("Unknown environment"),
         }
     }
@@ -60,9 +65,13 @@ mod tests {
     }
 
     #[test]
-    fn get_deploy_job_name_returns_correct_names() {
-        assert_eq!(Environment::Production.get_deploy_job_name(), "deploy_prod");
-        assert_eq!(Environment::Staging.get_deploy_job_name(), "deploy_staging");
+    fn deploy_jobs_lists_prod_then_staging_for_both() {
+        assert_eq!(Environment::Production.deploy_jobs(), ["deploy_prod"]);
+        assert_eq!(Environment::Staging.deploy_jobs(), ["deploy_staging"]);
+        assert_eq!(
+            Environment::Both.deploy_jobs(),
+            ["deploy_prod", "deploy_staging"]
+        );
     }
 
     #[test]
@@ -75,6 +84,7 @@ mod tests {
             "Staging".parse::<Environment>().unwrap(),
             Environment::Staging
         );
+        assert_eq!("Both".parse::<Environment>().unwrap(), Environment::Both);
         assert_eq!(
             "Invalid".parse::<Environment>().unwrap_err(),
             "Unknown environment"
@@ -86,5 +96,6 @@ mod tests {
     fn display_formatting() {
         assert_eq!(format!("{}", Environment::Production), "Production");
         assert_eq!(format!("{}", Environment::Staging), "Staging");
+        assert_eq!(format!("{}", Environment::Both), "Both");
     }
 }

@@ -62,7 +62,7 @@ FLAGS:
 
 OPTIONS:
     -e, --environment <environment>    Define the deploy environment (default: "Production", available: "Production",
-                                       "Staging")
+                                       "Staging", "Both")
     -s, --semver_type <semver_type>    Define how to increment the version number (default: "Patch", available: "Patch",
                                        "Minor", "Major")
 ```

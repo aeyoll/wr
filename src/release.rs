@@ -154,7 +154,7 @@ impl Release<'_> {
     /// Create the new release
     pub fn create(&self) -> Result<(), ReleaseError> {
         match self.environment {
-            Environment::Production => self.create_production_release(),
+            Environment::Production | Environment::Both => self.create_production_release(),
             Environment::Staging => Ok(()),
         }
     }
@@ -192,7 +192,7 @@ impl Release<'_> {
     /// Push the release
     pub fn push(&self) -> Result<(), ReleaseError> {
         match self.environment {
-            Environment::Production => self.push_production()?,
+            Environment::Production | Environment::Both => self.push_production()?,
             Environment::Staging => self.push_staging()?,
         }
 
@@ -211,9 +211,8 @@ impl Release<'_> {
     }
 
     /// Get the last pipeline id
-    pub fn get_last_pipeline_id(&self) -> Result<u64, ReleaseError> {
+    pub fn get_last_pipeline_id(&self, pipeline_ref: &str) -> Result<u64, ReleaseError> {
         let mut last_pipeline_id: u64 = 0;
-        let pipeline_ref = self.environment.get_pipeline_ref();
         let timeout = 60;
         let mut counter = 0;
 
@@ -245,65 +244,85 @@ impl Release<'_> {
         Ok(last_pipeline_id)
     }
 
-    /// Deploy to the environment
+    /// Deploy to the environment.
+    ///
+    /// Pipelines are resolved before any job is played. A manual job leaves
+    /// its pipeline "manual", and that status is not treated as active.
     pub fn deploy(&self) -> Result<(), ReleaseError> {
-        info!("[Deploy] Fetching latest pipeline.");
-        if let Ok(last_pipeline_id) = self.get_last_pipeline_id() {
-            let pipeline_url = format!(
-                "https://{}/{}/-/pipelines/{}",
-                *GITLAB_HOST, *PROJECT_NAME, last_pipeline_id
-            );
-            info!("[Deploy] Pipeline id {last_pipeline_id} is running ({pipeline_url}).");
+        let mut pending = Vec::new();
 
-            let jobs_endpoint = projects::pipelines::PipelineJobs::builder()
+        for deploy_job_name in self.environment.deploy_jobs() {
+            info!("[Deploy] Fetching latest pipeline.");
+            let pipeline_ref = Environment::pipeline_ref_for_job(deploy_job_name);
+            if let Ok(last_pipeline_id) = self.get_last_pipeline_id(pipeline_ref) {
+                pending.push((*deploy_job_name, last_pipeline_id));
+            }
+        }
+
+        for (deploy_job_name, last_pipeline_id) in pending {
+            self.play_deploy_job(deploy_job_name, last_pipeline_id)?;
+        }
+
+        Ok(())
+    }
+
+    fn play_deploy_job(
+        &self,
+        deploy_job_name: &str,
+        last_pipeline_id: u64,
+    ) -> Result<(), ReleaseError> {
+        let pipeline_url = format!(
+            "https://{}/{}/-/pipelines/{}",
+            *GITLAB_HOST, *PROJECT_NAME, last_pipeline_id
+        );
+        info!("[Deploy] Pipeline id {last_pipeline_id} is running ({pipeline_url}).");
+
+        let jobs_endpoint = projects::pipelines::PipelineJobs::builder()
+            .project(PROJECT_NAME.as_str())
+            .pipeline(last_pipeline_id)
+            .build()
+            .unwrap();
+
+        let jobs: Vec<Job> = jobs_endpoint.query(&self.gitlab).map_err(gitlab_err)?;
+
+        if let Some(job) = find_playable_deploy_job(&jobs, deploy_job_name) {
+            let job_id = job.id;
+            let job_name = job.name.clone();
+            // While the job has the "created" state, it means other jobs
+            // are pending before.
+            let mut job_status = job.status;
+            info!("[Deploy] Waiting for previous jobs to be over.");
+
+            while job_status == StatusState::Created {
+                sleep(Duration::from_secs(1));
+                let job: Job = self.get_job(job_id)?;
+                job_status = job.status;
+            }
+
+            // Trigger the deploy job
+            let play_job_endpoint = projects::jobs::PlayJob::builder()
                 .project(PROJECT_NAME.as_str())
-                .pipeline(last_pipeline_id)
+                .job(job_id)
                 .build()
                 .unwrap();
 
-            let jobs: Vec<Job> = jobs_endpoint.query(&self.gitlab).map_err(gitlab_err)?;
+            gitlab::api::ignore(play_job_endpoint)
+                .query(&self.gitlab)
+                .map_err(gitlab_err)?;
 
-            let deploy_job_name = self.environment.get_deploy_job_name();
+            info!("[Deploy] Playing \"{job_name}\" job.");
 
-            if let Some(job) = find_playable_deploy_job(&jobs, deploy_job_name) {
-                let job_id = job.id;
-                let job_name = job.name.clone();
-                // While the job has the "created" state, it means other jobs
-                // are pending before.
-                let mut job_status = job.status;
-                info!("[Deploy] Waiting for previous jobs to be over.");
+            let mut job: Job = self.get_job(job_id)?;
 
-                while job_status == StatusState::Created {
-                    sleep(Duration::from_secs(1));
-                    let job: Job = self.get_job(job_id)?;
-                    job_status = job.status;
-                }
+            while job.status != StatusState::Failed && job.status != StatusState::Success {
+                sleep(Duration::from_secs(1));
+                job = self.get_job(job_id)?;
+            }
 
-                // Trigger the deploy job
-                let play_job_endpoint = projects::jobs::PlayJob::builder()
-                    .project(PROJECT_NAME.as_str())
-                    .job(job_id)
-                    .build()
-                    .unwrap();
-
-                gitlab::api::ignore(play_job_endpoint)
-                    .query(&self.gitlab)
-                    .map_err(gitlab_err)?;
-
-                info!("[Deploy] Playing \"{job_name}\" job.");
-
-                let mut job: Job = self.get_job(job_id)?;
-
-                while job.status != StatusState::Failed && job.status != StatusState::Success {
-                    sleep(Duration::from_secs(1));
-                    job = self.get_job(job_id)?;
-                }
-
-                if job.status == StatusState::Failed {
-                    error!("[Deploy] \"{job_name}\" job failed");
-                } else if job.status == StatusState::Success {
-                    info!("[Deploy] \"{job_name}\" job succeeded")
-                }
+            if job.status == StatusState::Failed {
+                error!("[Deploy] \"{job_name}\" job failed");
+            } else if job.status == StatusState::Success {
+                info!("[Deploy] \"{job_name}\" job succeeded")
             }
         }
 

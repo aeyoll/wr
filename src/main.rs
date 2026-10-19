@@ -331,6 +331,17 @@ mod tests {
     }
 
     #[test]
+    fn release_parses_both_environment() {
+        match parse(&["wr", "release", "--environment", "both", "--deploy"]) {
+            Commands::Release(args) => {
+                assert_eq!(args.environment, Environment::Both);
+                assert!(args.deploy);
+            }
+            Commands::Hotfix(_) => panic!("expected release"),
+        }
+    }
+
+    #[test]
     fn hotfix_parses_commits_and_deploy() {
         match parse(&["wr", "hotfix", "abc", "def", "--deploy"]) {
             Commands::Hotfix(args) => {
